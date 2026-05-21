@@ -1,0 +1,129 @@
+.page { padding: 2rem; max-width: 1400px; }
+
+.header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 2rem;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+.title { font-size: 1.75rem; font-weight: 700; color: #F0EDE8; margin: 0; }
+.subtitle { color: #8B8680; font-size: 0.875rem; margin: 0.25rem 0 0; }
+.headerDate { color: #8B8680; font-size: 0.8rem; padding-top: 0.4rem; text-transform: capitalize; }
+
+/* KPIs */
+.kpiGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+.kpi {
+  background: #1A1D27;
+  border: 1px solid rgba(255,255,255,0.07);
+  border-radius: 16px;
+  padding: 1.25rem;
+  display: flex;
+  gap: 1rem;
+  align-items: flex-start;
+  transition: border-color 0.2s;
+}
+.kpi:hover { border-color: rgba(201,169,110,0.25); }
+.kpiGold { border-color: rgba(201,169,110,0.2); background: linear-gradient(135deg, #1E1A12, #1A1D27); }
+.kpiDanger { border-color: rgba(192,57,43,0.3); }
+
+.kpiIcon {
+  width: 42px; height: 42px;
+  background: rgba(201,169,110,0.1);
+  border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+  color: #C9A96E;
+  flex-shrink: 0;
+}
+.kpiGold .kpiIcon { background: rgba(201,169,110,0.15); }
+.kpiDanger .kpiIcon { background: rgba(192,57,43,0.12); color: #E74C3C; }
+
+.kpiBody { min-width: 0; }
+.kpiLabel { font-size: 0.75rem; color: #8B8680; margin: 0 0 0.25rem; text-transform: uppercase; letter-spacing: 0.05em; }
+.kpiValue { font-size: 1.6rem; font-weight: 700; color: #F0EDE8; margin: 0; line-height: 1.1; }
+.kpiGold .kpiValue { color: #C9A96E; }
+.kpiSub { font-size: 0.75rem; color: #8B8680; margin: 0.25rem 0 0; }
+
+/* Row */
+.row {
+  display: flex;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+  flex-wrap: wrap;
+}
+
+/* Card */
+.card {
+  background: #1A1D27;
+  border: 1px solid rgba(255,255,255,0.07);
+  border-radius: 16px;
+  padding: 1.25rem;
+  min-width: 0;
+}
+.cardHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1rem;
+}
+.cardTitle { font-size: 0.95rem; font-weight: 600; color: #F0EDE8; margin: 0; }
+.seeAll { font-size: 0.75rem; color: #C9A96E; text-decoration: none; transition: opacity 0.2s; }
+.seeAll:hover { opacity: 0.75; }
+
+/* Chart */
+.chart { width: 100%; height: 160px; overflow: visible; }
+
+/* Donut */
+.donutWrap {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  flex-wrap: wrap;
+}
+.donutLegend { display: flex; flex-direction: column; gap: 0.5rem; }
+.legendItem { display: flex; align-items: center; gap: 0.5rem; font-size: 0.8rem; }
+.legendDot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+.legendLabel { color: #A09890; flex: 1; }
+.legendCount { color: #F0EDE8; font-weight: 600; min-width: 20px; text-align: right; }
+
+/* Table */
+.table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+.table th { text-align: left; padding: 0.5rem 0.75rem; font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.05em; color: #8B8680; border-bottom: 1px solid rgba(255,255,255,0.06); }
+.table td { padding: 0.75rem; border-bottom: 1px solid rgba(255,255,255,0.04); color: #D0CBC5; }
+.table tr:last-child td { border-bottom: none; }
+.table tr:hover td { background: rgba(255,255,255,0.02); }
+
+.orderId { font-size: 0.75rem; color: #C9A96E; font-family: monospace; }
+.muted { color: #8B8680 !important; }
+.amount { font-weight: 600; color: #F0EDE8 !important; }
+.badge {
+  display: inline-block;
+  padding: 0.2rem 0.6rem;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  font-weight: 600;
+}
+
+/* Top products */
+.topProducts { display: flex; flex-direction: column; gap: 0.75rem; }
+.topProduct {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.5rem;
+  border-radius: 10px;
+  transition: background 0.15s;
+}
+.topProduct:hover { background: rgba(255,255,255,0.03); }
+.topRank { font-size: 0.75rem; color: #C9A96E; font-weight: 700; min-width: 20px; }
+.topImg { width: 36px; height: 36px; border-radius: 8px; object-fit: cover; }
+.topInfo { flex: 1; min-width: 0; }
+.topName { font-size: 0.82rem; color: #D0CBC5; margin: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.topRevenue { font-size: 0.75rem; color: #C9A96E; font-weight: 600; margin: 0.15rem 0 0; }
+.topQty { font-size: 0.7rem; color: #8B8680; white-space: nowrap; }
