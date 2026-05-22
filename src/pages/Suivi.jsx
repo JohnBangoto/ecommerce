@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { Search, Package, CheckCircle, Truck, Home, Clock, ArrowRight } from 'lucide-react';
 import { mockOrders, orderStatusLabels } from '../data/orders';
@@ -23,14 +23,47 @@ export default function Suivi() {
 
   const [searchId, setSearchId] = useState(orderId || '');
   const [searched, setSearched] = useState(!!orderId);
+  const [order, setOrder] = useState(null);
+  const [loading, setLoading] = useState(false);
 
-  // Priorité : adminStore → orderStore → mockOrders statiques
-  const findOrder = (id) =>
-    adminOrders.find(o => o.id === id)
-    || orderStoreGet(id)
-    || mockOrders.find(o => o.id === id);
+  useEffect(() => {
+    if (!searched || !searchId.trim()) {
+      setOrder(null);
+      return;
+    }
 
-  const order = searched ? findOrder(searchId) : null;
+    async function loadOrder() {
+      setLoading(true);
+      
+      // Priorité : adminStore → orderStore API → mockOrders statiques
+      const fromAdmin = adminOrders.find(o => o.id === searchId);
+      if (fromAdmin) {
+        setOrder(fromAdmin);
+        setLoading(false);
+        return;
+      }
+
+      const fromStore = await orderStoreGet(searchId);
+      if (fromStore) {
+        setOrder(fromStore);
+        setLoading(false);
+        return;
+      }
+
+      const fromMock = mockOrders.find(o => o.id === searchId);
+      if (fromMock) {
+        setOrder(fromMock);
+        setLoading(false);
+        return;
+      }
+
+      setOrder(null);
+      setLoading(false);
+    }
+
+    loadOrder();
+  }, [searched, searchId, adminOrders, orderStoreGet]);
+
   const statusInfo = order ? orderStatusLabels[order.status] : null;
 
   const formatDate = (dateStr) => {

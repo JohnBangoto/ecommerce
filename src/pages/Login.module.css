@@ -1,0 +1,108 @@
+.page {
+  min-height: calc(100vh - 120px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4rem 1rem;
+}
+
+.card {
+  max-width: 520px;
+  width: 100%;
+  background: white;
+  border: 1px solid var(--color-border-light);
+  border-radius: 28px;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.08);
+  padding: 2.5rem;
+}
+
+.head {
+  margin-bottom: 1.75rem;
+}
+
+.head h1 {
+  margin: 0;
+  font-size: 2rem;
+}
+
+.head p {
+  margin: 0.75rem 0 0;
+  color: #6b6560;
+  line-height: 1.6;
+}
+
+.form {
+  display: grid;
+  gap: 1rem;
+}
+
+.grid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.label {
+  display: grid;
+  gap: 0.5rem;
+  font-size: 0.95rem;
+  color: #3a322c;
+}
+
+.input {
+  width: 100%;
+  padding: 0.95rem 1rem;
+  border: 1px solid var(--color-border);
+  border-radius: 16px;
+  background: #fff;
+  color: #1a1714;
+}
+
+.error {
+  color: #c8503a;
+  font-size: 0.84rem;
+}
+
+.serverError {
+  color: #c8503a;
+  text-align: center;
+  font-size: 0.95rem;
+}
+
+.submit {
+  width: 100%;
+  padding: 1rem 1.25rem;
+  border: none;
+  border-radius: 999px;
+  background: #c9a96e;
+  color: #fff;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.toggleLine {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  font-size: 0.95rem;
+  color: #6b6560;
+}
+
+.toggleBtn {
+  border: none;
+  background: transparent;
+  color: #c9a96e;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.fallback {
+  text-align: center;
+  margin-top: 1rem;
+}
+
+.fallback a {
+  color: #1a1714;
+  text-decoration: underline;
+}

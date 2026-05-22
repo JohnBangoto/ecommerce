@@ -1,8 +1,10 @@
-import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Check, MapPin, Truck } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
-import { MapPin, Truck, Check } from 'lucide-react';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { useAuthStore } from '../store/authStore';
 import { useCartStore } from '../store/cartStore';
+import { useUIStore } from '../store/uiStore';
 import formatPrice from '../utils/formatPrice';
 import styles from './Commande.module.css';
 
@@ -14,6 +16,9 @@ const deliveryOptions = [
 
 export default function Commande() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const addToast = useUIStore((s) => s.addToast);
   const { items, getTotal } = useCartStore();
   const [selectedDelivery, setSelectedDelivery] = useState('standard');
   const { register, handleSubmit, formState: { errors } } = useForm();
@@ -24,6 +29,12 @@ export default function Commande() {
   const shippingCost = selectedDelivery === 'free' ? 0 : delivery?.price || 0;
   const grandTotal = total + shippingCost;
 
+  useEffect(() => {
+    if (!isAuthenticated) {
+      addToast('Connexion requise pour finaliser votre commande.', 'warning');
+      navigate('/login', { state: { from: location } });
+    }
+  }, [isAuthenticated, addToast, navigate, location]);
 
   const onSubmit = (data) => {
     navigate('/paiement', { state: { shippingData: data, delivery: selectedDelivery } });

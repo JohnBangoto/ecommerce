@@ -1,13 +1,14 @@
-import React, { useState } from 'react';
-import { Link, useParams, useNavigate } from 'react-router-dom';
-import { ShoppingCart, Heart, Star, Shield, Truck, RotateCcw, ChevronLeft, ChevronRight, Minus, Plus, Check } from 'lucide-react';
+import { Check, ChevronLeft, ChevronRight, Heart, Minus, Plus, RotateCcw, Shield, ShoppingCart, Star, Truck } from 'lucide-react';
+import { useState } from 'react';
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
+import ProductCard from '../components/product/ProductCard';
 import { categories } from '../data/products';
 import { useAdminStore } from '../store/adminStore';
-import ProductCard from '../components/product/ProductCard';
+import { useAuthStore } from '../store/authStore';
 import { useCartStore } from '../store/cartStore';
 import { useUIStore } from '../store/uiStore';
-import formatPrice from '../utils/formatPrice';
 import { getCategoryColorLabel, getCategorySizeLabel } from '../utils/categoryHelpers';
+import formatPrice from '../utils/formatPrice';
 import styles from './Produit.module.css';
 
 export default function Produit() {
@@ -19,6 +20,8 @@ export default function Produit() {
   const openCart = useCartStore((s) => s.openCart);
   const addToast = useUIStore((s) => s.addToast);
   const addReview = useAdminStore(s => s.addReview);
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const location = useLocation();
 
   const [selectedImg, setSelectedImg] = useState(0);
   const [selectedSize, setSelectedSize] = useState('');
@@ -45,6 +48,12 @@ export default function Produit() {
   const catName = categories.find(c => c.id === product.category)?.name;
 
   const handleAddToCart = () => {
+    if (!isAuthenticated) {
+      addToast('Connectez-vous pour ajouter un produit au panier.', 'warning');
+      navigate('/login', { state: { from: location } });
+      return;
+    }
+
     addItem(product, quantity, {
       size: selectedSize || undefined,
       color: selectedColor || undefined,
@@ -211,7 +220,13 @@ export default function Produit() {
               </button>
             </div>
 
-            <Link to="/commande" className={styles.buyNowBtn}>Commander maintenant</Link>
+            <Link
+              to={isAuthenticated ? '/commande' : '/login'}
+              className={styles.buyNowBtn}
+              state={isAuthenticated ? {} : { from: location }}
+            >
+              {isAuthenticated ? 'Commander maintenant' : 'Connectez-vous pour commander'}
+            </Link>
 
             {/* Assurances */}
             <div className={styles.guarantees}>

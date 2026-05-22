@@ -1,6 +1,6 @@
-import React from 'react';
-import { Link } from 'react-router-dom';
-import { ShoppingCart, Heart, Star } from 'lucide-react';
+import { Heart, ShoppingCart, Star } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
+import { useAuthStore } from '../../store/authStore';
 import { useCartStore } from '../../store/cartStore';
 import { useUIStore } from '../../store/uiStore';
 import formatPrice from '../../utils/formatPrice';
@@ -10,10 +10,19 @@ export default function ProductCard({ product }) {
   const addItem = useCartStore((s) => s.addItem);
   const openCart = useCartStore((s) => s.openCart);
   const addToast = useUIStore((s) => s.addToast);
+  const navigate = useNavigate();
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
 
   const handleAddToCart = (e) => {
     e.preventDefault();
     e.stopPropagation();
+
+    if (!isAuthenticated) {
+      addToast('Connectez-vous pour ajouter un produit au panier.', 'warning');
+      navigate('/login', { state: { from: `/produit/${product.id}` } });
+      return;
+    }
+
     addItem(product, 1);
     addToast(`"${product.name}" ajouté au panier`);
   };

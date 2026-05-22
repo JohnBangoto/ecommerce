@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { CheckCircle, Package, MapPin, ArrowRight, ShoppingBag } from 'lucide-react';
 import { useAdminStore } from '../store/adminStore';
@@ -9,18 +9,46 @@ import styles from './Confirmation.module.css';
 
 export default function Confirmation() {
   const { orderId } = useParams();
+  const [order, setOrder] = useState(null);
+  const [loading, setLoading] = useState(true);
 
   // adminStore = source de vérité unique pour les statuts
   const adminOrders  = useAdminStore(s => s.orders);
   const getOrderById = useOrderStore(s => s.getOrderById);
   const currentOrder = useOrderStore(s => s.currentOrder);
 
-  // Priorité : adminStore → orderStore → mockOrders
-  const order =
-    adminOrders.find(o => o.id === orderId)
-    || getOrderById(orderId)
-    || mockOrders.find(o => o.id === orderId)
-    || currentOrder;
+  useEffect(() => {
+    async function loadOrder() {
+      // Priorité : adminStore → orderStore API → mockOrders → currentOrder
+      const fromAdmin = adminOrders.find(o => o.id === orderId);
+      if (fromAdmin) {
+        setOrder(fromAdmin);
+        setLoading(false);
+        return;
+      }
+
+      const fromStore = await getOrderById(orderId);
+      if (fromStore) {
+        setOrder(fromStore);
+        setLoading(false);
+        return;
+      }
+
+      const fromMock = mockOrders.find(o => o.id === orderId);
+      if (fromMock) {
+        setOrder(fromMock);
+        setLoading(false);
+        return;
+      }
+
+      if (currentOrder) {
+        setOrder(currentOrder);
+      }
+      setLoading(false);
+    }
+    loadOrder();
+  }, [orderId, adminOrders, currentOrder, getOrderById]);
+
 
 
   return (

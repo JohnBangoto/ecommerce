@@ -1,38 +1,64 @@
-import React from 'react';
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
-import Header from './components/layout/Header';
-import Footer from './components/layout/Footer';
+import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import CartDrawer from './components/cart/CartDrawer';
+import Footer from './components/layout/Footer';
+import Header from './components/layout/Header';
 import ToastContainer from './components/ui/Toast';
+import Login from './pages/Login';
+import { useAuthStore } from './store/authStore';
 
 // Front office pages
-import Home from './pages/Home';
 import Catalogue from './pages/Catalogue';
+import Commande from './pages/Commande';
+import Confirmation from './pages/Confirmation';
+import Contact from './pages/Contact';
+import Home from './pages/Home';
+import Paiement from './pages/Paiement';
+import Panier from './pages/Panier';
 import Produit from './pages/Produit';
 import Recherche from './pages/Recherche';
-import Panier from './pages/Panier';
-import Commande from './pages/Commande';
-import Paiement from './pages/Paiement';
-import Confirmation from './pages/Confirmation';
 import Suivi from './pages/Suivi';
-import Contact from './pages/Contact';
 
 // Back office
 import AdminLayout from './components/admin/AdminLayout';
-import Dashboard from './pages/admin/Dashboard';
-import AdminProduits from './pages/admin/AdminProduits';
 import AdminCommandes from './pages/admin/AdminCommandes';
-import AdminStock from './pages/admin/AdminStock';
+import AdminLogin from './pages/admin/AdminLogin';
+import AdminProduits from './pages/admin/AdminProduits';
 import AdminStats from './pages/admin/AdminStats';
+import AdminStock from './pages/admin/AdminStock';
+import Dashboard from './pages/admin/Dashboard';
 
 import styles from './App.module.css';
+
+function RequireAuth({ children }) {
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const location = useLocation();
+
+  if (!isAuthenticated) {
+    return <Navigate to="/login" state={{ from: location }} replace />;
+  }
+
+  return children;
+}
+
+function RequireAdmin({ children }) {
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const user = useAuthStore((s) => s.user);
+  const location = useLocation();
+
+  if (!isAuthenticated || !user || user.role !== 'admin') {
+    return <Navigate to="/admin/login" state={{ from: location }} replace />;
+  }
+
+  return children;
+}
 
 export default function App() {
   return (
     <BrowserRouter>
       <Routes>
         {/* ── Back Office (/admin/*) ── */}
-        <Route path="/admin" element={<AdminLayout />}>
+        <Route path="/admin/login" element={<AdminLogin />} />
+        <Route path="/admin" element={<RequireAdmin><AdminLayout /></RequireAdmin>}>
           <Route index element={<Dashboard />} />
           <Route path="produits" element={<AdminProduits />} />
           <Route path="commandes" element={<AdminCommandes />} />
@@ -51,8 +77,9 @@ export default function App() {
                 <Route path="/produit/:id" element={<Produit />} />
                 <Route path="/recherche" element={<Recherche />} />
                 <Route path="/panier" element={<Panier />} />
-                <Route path="/commande" element={<Commande />} />
-                <Route path="/paiement" element={<Paiement />} />
+                <Route path="/commande" element={<RequireAuth><Commande /></RequireAuth>} />
+                <Route path="/paiement" element={<RequireAuth><Paiement /></RequireAuth>} />
+                <Route path="/login" element={<Login />} />
                 <Route path="/confirmation/:orderId" element={<Confirmation />} />
                 <Route path="/confirmation" element={<Confirmation />} />
                 <Route path="/suivi/:orderId" element={<Suivi />} />

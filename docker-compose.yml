@@ -1,0 +1,31 @@
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: luxora
+      POSTGRES_PASSWORD: luxora_pass
+      POSTGRES_DB: luxora_db
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    env_file:
+      - ./backend/.env.docker
+    volumes:
+      - ./backend:/usr/src/app
+      - /usr/src/app/node_modules
+    ports:
+      - "5001:5000"
+    depends_on:
+      - db
+    command: sh -c "npx prisma generate && npx prisma db push && npx prisma db seed && npm run dev"
+
+volumes:
+  postgres_data:

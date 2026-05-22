@@ -1,6 +1,6 @@
-import React from 'react';
+import { Heart, Menu, Search, ShoppingCart, User, X } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
-import { ShoppingCart, Search, Menu, X, Heart, User } from 'lucide-react';
+import { useAuthStore } from '../../store/authStore';
 import { useCartStore } from '../../store/cartStore';
 import { useUIStore } from '../../store/uiStore';
 import styles from './Header.module.css';
@@ -10,6 +10,15 @@ export default function Header() {
   const count = useCartStore((s) => s.getCount());
   const openCart = useCartStore((s) => s.openCart);
   const { searchQuery, setSearchQuery, isMenuOpen, toggleMenu, closeMenu } = useUIStore();
+  const user = useAuthStore((s) => s.user);
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const logout = useAuthStore((s) => s.logout);
+
+  const handleLogout = () => {
+    logout();
+    closeMenu();
+    navigate('/');
+  };
 
   const handleSearch = (e) => {
     e.preventDefault();
@@ -62,9 +71,15 @@ export default function Header() {
           <button className={styles.iconBtn} aria-label="Favoris">
             <Heart size={20} />
           </button>
-          <button className={styles.iconBtn} aria-label="Mon compte">
-            <User size={20} />
-          </button>
+          {isAuthenticated ? (
+            <button className={styles.iconBtn} onClick={handleLogout} aria-label="Déconnexion">
+              <span>{user?.firstName || user?.email || 'Déconnexion'}</span>
+            </button>
+          ) : (
+            <Link to="/login" className={styles.iconBtn} onClick={closeMenu} aria-label="Se connecter">
+              <User size={20} />
+            </Link>
+          )}
           <button
             className={styles.cartBtn}
             onClick={openCart}

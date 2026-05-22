@@ -1,16 +1,72 @@
-# React + Vite
+# Luxora E-commerce
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Projet React + Vite en frontend et Express + Prisma en backend.
 
-Currently, two official plugins are available:
+## Modes de lancement
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+### Mode local recommande
 
-## React Compiler
+Utilise le frontend et le backend en local, avec uniquement PostgreSQL dans Docker.
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+```bash
+npm install
+npm run dev:db
+npm run dev
+```
 
-## Expanding the ESLint configuration
+URLs :
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+- Frontend : `http://localhost:5173`
+- Backend : `http://localhost:5000`
+- Swagger : `http://localhost:5000/api-docs`
+
+Le backend local lit [backend/.env](backend/.env) et pointe vers `localhost:5432`.
+
+### Mode Docker pour le backend
+
+Utilise PostgreSQL + backend dans Docker, et garde seulement le frontend en local.
+
+```bash
+npm run docker:up
+npm run dev:frontend:docker
+```
+
+URLs :
+
+- Frontend : `http://localhost:5173`
+- Backend Docker : `http://localhost:5001`
+- Swagger : `http://localhost:5001/api-docs`
+
+Le backend Docker lit [backend/.env.docker](backend/.env.docker), et le frontend utilise [.env.docker](.env.docker).
+
+## Variables d'environnement
+
+- [backend/.env.example](backend/.env.example) : exemple pour le backend local
+- [backend/.env.docker](backend/.env.docker) : configuration backend Docker
+- [.env.example](.env.example) : exemple pour le frontend local
+- [.env.docker](.env.docker) : configuration frontend quand le backend tourne dans Docker
+
+La variable frontend utilisee est `VITE_API_BASE_URL`.
+
+## Scripts utiles
+
+```bash
+npm run dev
+npm run dev:db
+npm run dev:frontend
+npm run dev:frontend:docker
+npm run docker:up
+npm run docker:down
+npm run docker:logs:backend
+```
+
+## Pourquoi le port 5000 plantait
+
+Le backend local et le backend Docker tentaient tous les deux d'utiliser `localhost:5000`.
+
+Maintenant :
+
+- le backend local ecoute sur `5000`
+- le backend Docker est expose sur `5001`
+
+Tu peux donc utiliser les deux modes sans conflit de port sur la machine.

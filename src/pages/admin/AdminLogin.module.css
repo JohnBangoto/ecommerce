@@ -1,0 +1,11 @@
+.page { min-height: calc(100vh - 120px); display: flex; align-items: center; justify-content: center; padding: 4rem 1rem; }
+.card { max-width: 520px; width: 100%; background: white; border: 1px solid var(--color-border-light); border-radius: 20px; padding: 2rem; }
+.head h1 { margin: 0; font-size: 1.75rem; }
+.head p { margin-top: 0.5rem; color: #6b6560; }
+.form { display: grid; gap: 1rem; margin-top: 1rem; }
+.label { display: grid; gap: 0.5rem; }
+.input { padding: 0.85rem 1rem; border: 1px solid var(--color-border); border-radius: 12px; }
+.submit { padding: 0.9rem 1.2rem; border-radius: 999px; border: none; background: #c9a96e; color: white; font-weight: 700; cursor: pointer; }
+.error { color: #c8503a; font-size: 0.85rem; }
+.fallback { text-align: center; margin-top: 0.75rem; }
+.fallback a { color: #1a1714; text-decoration: underline; }

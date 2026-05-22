@@ -1,14 +1,15 @@
-import React from 'react';
+import { ArrowRight, Minus, Plus, ShoppingBag, Tag, Trash2, Truck } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
-import { ShoppingBag, Minus, Plus, Trash2, ArrowRight, Tag, Truck } from 'lucide-react';
-import { useCartStore } from '../store/cartStore';
-import { featuredProducts } from '../data/products';
 import ProductCard from '../components/product/ProductCard';
+import { featuredProducts } from '../data/products';
+import { useAuthStore } from '../store/authStore';
+import { useCartStore } from '../store/cartStore';
 import formatPrice from '../utils/formatPrice';
 import styles from './Panier.module.css';
 
 export default function Panier() {
   const { items, removeItem, updateQuantity, getTotal, clearCart } = useCartStore();
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const navigate = useNavigate();
   const total = getTotal();
   const shipping = total >= 50000 ? 0 : 3500;
@@ -133,8 +134,12 @@ export default function Panier() {
               </div>
             </div>
 
-            <Link to="/commande" className={styles.checkoutBtn}>
-              Commander <ArrowRight size={18} />
+            <Link
+              to={isAuthenticated ? '/commande' : '/login'}
+              className={styles.checkoutBtn}
+              state={isAuthenticated ? {} : { from: '/commande' }}
+            >
+              {isAuthenticated ? 'Commander' : 'Se connecter pour commander'} <ArrowRight size={18} />
             </Link>
             <Link to="/catalogue" className={styles.continueBtn}>
               Continuer mes achats

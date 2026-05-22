@@ -1,0 +1,76 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id           Int      @id @default(autoincrement())
+  email        String   @unique
+  passwordHash String
+  firstName    String?
+  lastName     String?
+  role         String   @default("customer") // "customer" or "admin"
+  orders       Order[]
+  createdAt    DateTime @default(now())
+}
+
+model Product {
+  id           Int         @id @default(autoincrement())
+  name         String
+  description  String
+  price        Float
+  stock        Int
+  category     String
+  image        String      // URL locale de l'image principale, ex: "/uploads/image.jpg"
+  images       String?     // Liste d'URLs séparées par des virgules ou JSON sous forme de chaîne
+  sizes        String?     // Liste de tailles séparées par des virgules (ex: "S,M,L")
+  colors       String?     // Liste de couleurs séparées par des virgules (ex: "Noir,Rouge")
+  rating       Float       @default(4.5)
+  reviewsCount Int         @default(0)
+  isFeatured   Boolean     @default(false)
+  isNew        Boolean     @default(true)
+  reviews      Review[]
+  orderItems   OrderItem[]
+  createdAt    DateTime    @default(now())
+}
+
+model Review {
+  id        Int      @id @default(autoincrement())
+  productId Int
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  author    String
+  rating    Int
+  comment   String
+  date      String   // Stocke la date au format local "dd/mm/yyyy"
+  createdAt DateTime @default(now())
+}
+
+model Order {
+  id              String      @id // "CMD-1716382041" par exemple
+  userId          Int?
+  user            User?       @relation(fields: [userId], references: [id], onDelete: SetNull)
+  total           Float
+  status          String      @default("confirmed") // "confirmed" | "prepared" | "shipped" | "delivered" | "cancelled"
+  paymentStatus   String      @default("paid")      // "paid" | "pending"
+  shippingAddress String      // JSON stringified contenant firstName, lastName, address, city, zip, phone, email, country
+  trackingNumber  String
+  items           OrderItem[]
+  createdAt       DateTime    @default(now())
+}
+
+model OrderItem {
+  id        Int     @id @default(autoincrement())
+  orderId   String
+  order     Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId Int
+  product   Product @relation(fields: [productId], references: [id])
+  name      String
+  quantity  Int
+  price     Float
+  size      String?
+  color     String?
+}
