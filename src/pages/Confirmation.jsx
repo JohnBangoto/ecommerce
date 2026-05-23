@@ -1,61 +1,52 @@
-import React, { useState, useEffect } from 'react';
+import { ArrowRight, CheckCircle, MapPin, Package, ShoppingBag } from 'lucide-react';
+import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { CheckCircle, Package, MapPin, ArrowRight, ShoppingBag } from 'lucide-react';
 import { useAdminStore } from '../store/adminStore';
 import { useOrderStore } from '../store/orderStore';
-import { mockOrders } from '../data/orders';
 import formatPrice from '../utils/formatPrice';
 import styles from './Confirmation.module.css';
 
 export default function Confirmation() {
   const { orderId } = useParams();
   const [order, setOrder] = useState(null);
-  const [loading, setLoading] = useState(true);
 
-  // adminStore = source de vérité unique pour les statuts
-  const adminOrders  = useAdminStore(s => s.orders);
-  const getOrderById = useOrderStore(s => s.getOrderById);
-  const currentOrder = useOrderStore(s => s.currentOrder);
+  const adminOrders = useAdminStore((state) => state.orders);
+  const getOrderById = useOrderStore((state) => state.getOrderById);
+  const getTrackingToken = useOrderStore((state) => state.getTrackingToken);
+  const currentOrder = useOrderStore((state) => state.currentOrder);
 
   useEffect(() => {
     async function loadOrder() {
-      // Priorité : adminStore → orderStore API → mockOrders → currentOrder
-      const fromAdmin = adminOrders.find(o => o.id === orderId);
+      const fromAdmin = adminOrders.find((entry) => entry.id === orderId);
       if (fromAdmin) {
         setOrder(fromAdmin);
-        setLoading(false);
         return;
       }
 
-      const fromStore = await getOrderById(orderId);
+      const trackingToken = getTrackingToken(orderId);
+      const fromStore = await getOrderById(orderId, { trackingToken });
       if (fromStore) {
         setOrder(fromStore);
-        setLoading(false);
-        return;
-      }
-
-      const fromMock = mockOrders.find(o => o.id === orderId);
-      if (fromMock) {
-        setOrder(fromMock);
-        setLoading(false);
         return;
       }
 
       if (currentOrder) {
         setOrder(currentOrder);
       }
-      setLoading(false);
     }
+
     loadOrder();
-  }, [orderId, adminOrders, currentOrder, getOrderById]);
+  }, [adminOrders, currentOrder, getOrderById, getTrackingToken, orderId]);
 
-
+  const trackingToken = order?.trackingToken || getTrackingToken(orderId);
+  const trackingLink = trackingToken
+    ? `/suivi/${orderId || order?.id}?token=${encodeURIComponent(trackingToken)}`
+    : `/suivi/${orderId || order?.id}`;
 
   return (
     <main className={styles.page}>
       <div className="container">
         <div className={styles.card}>
-          {/* Success Icon */}
           <div className={styles.iconWrap}>
             <div className={styles.iconCircle}>
               <CheckCircle size={48} />
@@ -64,65 +55,73 @@ export default function Confirmation() {
             <div className={styles.iconRing2} />
           </div>
 
-          <h1 className={styles.title}>Commande Confirmée !</h1>
+          <h1 className={styles.title}>Commande Confirmee !</h1>
           <p className={styles.subtitle}>
             Merci pour votre commande. Vous recevrez un email de confirmation sous peu.
           </p>
 
           {order && (
             <div className={styles.orderId}>
-              Numéro de commande : <strong>{order.id || orderId}</strong>
+              Numero de commande : <strong>{order.id || orderId}</strong>
             </div>
           )}
 
-          {/* Order Summary */}
           {order && (
             <div className={styles.summary}>
-              <h2 className={styles.summaryTitle}>Récapitulatif de votre commande</h2>
+              <h2 className={styles.summaryTitle}>Recapitulatif de votre commande</h2>
               <div className={styles.items}>
-                {order.items?.map((item, i) => (
-                  <div key={i} className={styles.item}>
+                {order.items?.map((item, index) => (
+                  <div key={index} className={styles.item}>
                     <img src={item.image} alt={item.name} className={styles.itemImg} />
                     <div className={styles.itemInfo}>
                       <p className={styles.itemName}>{item.name}</p>
-                      <p className={styles.itemQty}>Qté : {item.quantity}</p>
+                      <p className={styles.itemQty}>Qte : {item.quantity}</p>
                     </div>
                     <span className={styles.itemPrice}>{formatPrice(item.price * item.quantity)}</span>
                   </div>
                 ))}
               </div>
               <div className={styles.totals}>
-                <div className={styles.totalRow}><span>Sous-total</span><span>{formatPrice(order.subtotal)}</span></div>
-                <div className={styles.totalRow}><span>Livraison</span><span>{order.shipping === 0 ? 'Gratuite' : formatPrice(order.shipping)}</span></div>
+                <div className={styles.totalRow}>
+                  <span>Sous-total</span>
+                  <span>{formatPrice(order.subtotal)}</span>
+                </div>
+                <div className={styles.totalRow}>
+                  <span>Livraison</span>
+                  <span>{order.shipping === 0 ? 'Gratuite' : formatPrice(order.shipping)}</span>
+                </div>
                 <div className={`${styles.totalRow} ${styles.totalMain}`}>
-                  <span>Total payé</span><span>{formatPrice(order.total)}</span>
+                  <span>Total paye</span>
+                  <span>{formatPrice(order.total)}</span>
                 </div>
               </div>
             </div>
           )}
 
-          {/* Next Steps */}
           <div className={styles.steps}>
             <div className={styles.nextStep}>
-              <div className={styles.nextStepIcon}><Package size={20} /></div>
+              <div className={styles.nextStepIcon}>
+                <Package size={20} />
+              </div>
               <div>
-                <p className={styles.nextStepTitle}>Préparation</p>
-                <p className={styles.nextStepDesc}>Votre commande est en cours de préparation</p>
+                <p className={styles.nextStepTitle}>Preparation</p>
+                <p className={styles.nextStepDesc}>Votre commande est en cours de preparation</p>
               </div>
             </div>
             <div className={styles.nextStepLine} />
             <div className={styles.nextStep}>
-              <div className={styles.nextStepIcon}><MapPin size={20} /></div>
+              <div className={styles.nextStepIcon}>
+                <MapPin size={20} />
+              </div>
               <div>
                 <p className={styles.nextStepTitle}>Suivi</p>
-                <p className={styles.nextStepDesc}>Recevez votre numéro de suivi par email</p>
+                <p className={styles.nextStepDesc}>Conservez votre lien de suivi securise</p>
               </div>
             </div>
           </div>
 
-          {/* Actions */}
           <div className={styles.actions}>
-            <Link to={`/suivi/${orderId || (order?.id)}`} className={styles.trackBtn}>
+            <Link to={trackingLink} className={styles.trackBtn}>
               <Package size={18} /> Suivre ma commande <ArrowRight size={16} />
             </Link>
             <Link to="/catalogue" className={styles.shopBtn}>

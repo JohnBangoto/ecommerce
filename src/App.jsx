@@ -12,6 +12,7 @@ import Commande from './pages/Commande';
 import Confirmation from './pages/Confirmation';
 import Contact from './pages/Contact';
 import Home from './pages/Home';
+import MesCommandes from './pages/MesCommandes';
 import Paiement from './pages/Paiement';
 import Panier from './pages/Panier';
 import Produit from './pages/Produit';
@@ -26,6 +27,7 @@ import AdminProduits from './pages/admin/AdminProduits';
 import AdminStats from './pages/admin/AdminStats';
 import AdminStock from './pages/admin/AdminStock';
 import Dashboard from './pages/admin/Dashboard';
+import { useAdminAuthStore } from './store/adminAuthStore';
 
 import styles from './App.module.css';
 
@@ -41,11 +43,11 @@ function RequireAuth({ children }) {
 }
 
 function RequireAdmin({ children }) {
-  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
-  const user = useAuthStore((s) => s.user);
+  const isAdminAuthenticated = useAdminAuthStore((s) => s.isAdminAuthenticated);
+  const adminUser = useAdminAuthStore((s) => s.adminUser);
   const location = useLocation();
 
-  if (!isAuthenticated || !user || user.role !== 'admin') {
+  if (!isAdminAuthenticated || !adminUser || adminUser.role !== 'admin') {
     return <Navigate to="/admin/login" state={{ from: location }} replace />;
   }
 
@@ -79,6 +81,7 @@ export default function App() {
                 <Route path="/panier" element={<Panier />} />
                 <Route path="/commande" element={<RequireAuth><Commande /></RequireAuth>} />
                 <Route path="/paiement" element={<RequireAuth><Paiement /></RequireAuth>} />
+                <Route path="/mes-commandes" element={<RequireAuth><MesCommandes /></RequireAuth>} />
                 <Route path="/login" element={<Login />} />
                 <Route path="/confirmation/:orderId" element={<Confirmation />} />
                 <Route path="/confirmation" element={<Confirmation />} />

@@ -1,16 +1,20 @@
-import React, { useState } from 'react';
-import { useAdminStore } from '../../store/adminStore';
+import { useEffect, useState } from 'react';
 import { orderStatusLabels } from '../../data/orders';
+import { useAdminStore } from '../../store/adminStore';
 import formatPrice from '../../utils/formatPrice';
 import styles from './AdminCommandes.module.css';
 
 const STATUS_OPTIONS = ['confirmed','prepared','shipped','delivered','cancelled'];
 
 export default function AdminCommandes() {
-  const { orders, updateOrderStatus } = useAdminStore();
+  const { orders, updateOrderStatus, loadOrders } = useAdminStore();
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [selectedOrder, setSelectedOrder] = useState(null);
+
+  useEffect(() => {
+    loadOrders();
+  }, [loadOrders]);
 
   const filtered = orders.filter(o => {
     const matchSearch =

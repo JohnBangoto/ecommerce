@@ -1,75 +1,100 @@
-import { PrismaClient } from '@prisma/client';
 import express from 'express';
+import { z } from 'zod';
+import { prisma } from '../lib/prisma.js';
 import { authenticateToken, requireAdmin } from '../middlewares/auth.js';
 import { upload } from '../middlewares/upload.js';
+import { validate } from '../middlewares/validate.js';
 
 const router = express.Router();
-const prisma = new PrismaClient();
 
-// Helper pour formater un produit de la DB au format attendu par le frontend
+const productIdSchema = z.object({
+  id: z.coerce.number().int().positive(),
+});
+
+const productListQuerySchema = z.object({
+  category: z.string().trim().max(60).optional(),
+  search: z.string().trim().max(120).optional(),
+  minPrice: z.coerce.number().nonnegative().optional(),
+  maxPrice: z.coerce.number().nonnegative().optional(),
+  isFeatured: z.enum(['true', 'false']).optional(),
+  isNew: z.enum(['true', 'false']).optional(),
+});
+
+const reviewSchema = z.object({
+  rating: z.coerce.number().int().min(1).max(5),
+  comment: z.string().trim().max(2000).optional(),
+});
+
+const stringToBoolean = (value) => {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  if (typeof value === 'boolean') {
+    return value;
+  }
+
+  return value === 'true';
+};
+
+const createProductSchema = z.object({
+  name: z.string().trim().min(2).max(160),
+  description: z.string().trim().max(10000).optional().default(''),
+  price: z.coerce.number().nonnegative(),
+  stock: z.coerce.number().int().min(0).optional().default(0),
+  category: z.string().trim().min(1).max(60),
+  sizes: z.string().trim().max(500).optional().default(''),
+  colors: z.string().trim().max(500).optional().default(''),
+});
+
+const updateProductSchema = z
+  .object({
+    name: z.string().trim().min(2).max(160).optional(),
+    description: z.string().trim().max(10000).optional(),
+    price: z.coerce.number().nonnegative().optional(),
+    stock: z.coerce.number().int().min(0).optional(),
+    category: z.string().trim().min(1).max(60).optional(),
+    sizes: z.string().trim().max(500).optional(),
+    colors: z.string().trim().max(500).optional(),
+    isFeatured: z.union([z.boolean(), z.enum(['true', 'false'])]).optional(),
+    isNew: z.union([z.boolean(), z.enum(['true', 'false'])]).optional(),
+  })
+  .refine((payload) => Object.keys(payload).length > 0, {
+    message: 'At least one product field must be provided.',
+  });
+
 const formatProductResponse = (product) => {
-  if (!product) return null;
+  if (!product) {
+    return null;
+  }
+
   return {
     ...product,
-    sizes: product.sizes ? product.sizes.split(',').filter(Boolean) : [],
-    colors: product.colors ? product.colors.split(',').filter(Boolean) : [],
-    images: product.images ? product.images.split(',').filter(Boolean) : [product.image],
+    sizes: product.sizes ? product.sizes.split(',').map((value) => value.trim()).filter(Boolean) : [],
+    colors: product.colors ? product.colors.split(',').map((value) => value.trim()).filter(Boolean) : [],
+    images: product.images
+      ? product.images.split(',').map((value) => value.trim()).filter(Boolean)
+      : [product.image],
     reviewsList: product.reviews || [],
   };
+};
+
+const includeProductRelations = {
+  reviews: {
+    orderBy: { createdAt: 'desc' },
+  },
 };
 
 /**
  * @swagger
  * /api/products:
  *   get:
- *     summary: Récupérer tous les produits avec filtres
+ *     summary: Retrieve products with filters
  *     tags: [Produits]
- *     parameters:
- *       - in: query
- *         name: category
- *         schema:
- *           type: string
- *         description: Filtrer par catégorie
- *       - in: query
- *         name: search
- *         schema:
- *           type: string
- *         description: Recherche par nom ou description
- *       - in: query
- *         name: minPrice
- *         schema:
- *           type: number
- *         description: Prix minimum
- *       - in: query
- *         name: maxPrice
- *         schema:
- *           type: number
- *         description: Prix maximum
- *       - in: query
- *         name: isFeatured
- *         schema:
- *           type: boolean
- *         description: Produits en vedette uniquement
- *       - in: query
- *         name: isNew
- *         schema:
- *           type: boolean
- *         description: Nouveaux produits uniquement
- *     responses:
- *       200:
- *         description: Liste des produits
- *         content:
- *           application/json:
- *             schema:
- *               type: array
- *               items:
- *                 $ref: '#/components/schemas/Product'
  */
-// ── Obtenir tous les produits (avec filtres & recherche) ──
-router.get('/', async (req, res) => {
+router.get('/', validate({ query: productListQuerySchema }), async (req, res) => {
   try {
     const { category, search, minPrice, maxPrice, isFeatured, isNew } = req.query;
-
     const where = {};
 
     if (category && category !== 'all') {
@@ -86,33 +111,32 @@ router.get('/', async (req, res) => {
 
     if (search) {
       where.OR = [
-        { name: { contains: search } },
-        { description: { contains: search } },
-        { category: { contains: search } },
+        { name: { contains: search, mode: 'insensitive' } },
+        { description: { contains: search, mode: 'insensitive' } },
+        { category: { contains: search, mode: 'insensitive' } },
       ];
     }
 
-    if (minPrice || maxPrice) {
+    if (minPrice !== undefined || maxPrice !== undefined) {
       where.price = {};
-      if (minPrice) where.price.gte = parseFloat(minPrice);
-      if (maxPrice) where.price.lte = parseFloat(maxPrice);
+      if (minPrice !== undefined) {
+        where.price.gte = minPrice;
+      }
+      if (maxPrice !== undefined) {
+        where.price.lte = maxPrice;
+      }
     }
 
     const products = await prisma.product.findMany({
       where,
       orderBy: { createdAt: 'desc' },
-      include: {
-        reviews: {
-          orderBy: { createdAt: 'desc' },
-        },
-      },
+      include: includeProductRelations,
     });
 
-    const formattedProducts = products.map(formatProductResponse);
-    res.json(formattedProducts);
+    return res.json(products.map(formatProductResponse));
   } catch (error) {
-    console.error('Erreur lors de la récupération des produits :', error);
-    res.status(500).json({ message: 'Une erreur est survenue lors de la récupération des produits.' });
+    console.error('Product list error:', error);
+    return res.status(500).json({ message: 'Unable to load the products right now.' });
   }
 });
 
@@ -120,50 +144,24 @@ router.get('/', async (req, res) => {
  * @swagger
  * /api/products/{id}:
  *   get:
- *     summary: Récupérer un produit par son ID
+ *     summary: Retrieve a product by its id
  *     tags: [Produits]
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema:
- *           type: integer
- *         description: ID du produit
- *     responses:
- *       200:
- *         description: Détails du produit
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Product'
- *       404:
- *         description: Produit non trouvé
  */
-// ── Obtenir un produit par son ID ──
-router.get('/:id', async (req, res) => {
+router.get('/:id', validate({ params: productIdSchema }), async (req, res) => {
   try {
-    const id = parseInt(req.params.id);
-    if (isNaN(id)) {
-      return res.status(400).json({ message: 'ID produit invalide.' });
-    }
-
     const product = await prisma.product.findUnique({
-      where: { id },
-      include: {
-        reviews: {
-          orderBy: { createdAt: 'desc' },
-        },
-      },
+      where: { id: req.params.id },
+      include: includeProductRelations,
     });
 
     if (!product) {
-      return res.status(404).json({ message: 'Produit introuvable.' });
+      return res.status(404).json({ message: 'Product not found.' });
     }
 
-    res.json(formatProductResponse(product));
+    return res.json(formatProductResponse(product));
   } catch (error) {
-    console.error('Erreur lors du chargement du produit :', error);
-    res.status(500).json({ message: 'Une erreur est survenue lors du chargement du produit.' });
+    console.error('Product detail error:', error);
+    return res.status(500).json({ message: 'Unable to load the product right now.' });
   }
 });
 
@@ -171,93 +169,69 @@ router.get('/:id', async (req, res) => {
  * @swagger
  * /api/products/{id}/reviews:
  *   post:
- *     summary: Ajouter un avis sur un produit
+ *     summary: Add a review to a product
  *     tags: [Produits]
  *     security:
  *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema:
- *           type: integer
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required: [rating]
- *             properties:
- *               rating:
- *                 type: integer
- *                 minimum: 1
- *                 maximum: 5
- *                 example: 5
- *               comment:
- *                 type: string
- *                 example: Excellent produit !
- *     responses:
- *       201:
- *         description: Avis ajouté avec succès
- *       404:
- *         description: Produit non trouvé
  */
-// ── Ajouter un avis client sur un produit ──
-router.post('/:id/reviews', authenticateToken, async (req, res) => {
+router.post('/:id/reviews', authenticateToken, validate({ params: productIdSchema, body: reviewSchema }), async (req, res) => {
   try {
-    const productId = parseInt(req.params.id);
-    const { rating, comment } = req.body;
-    const author = req.user.firstName 
-      ? `${req.user.firstName} ${req.user.lastName || ''}`.trim() 
-      : req.user.email;
+    const [product, user] = await Promise.all([
+      prisma.product.findUnique({ where: { id: req.params.id } }),
+      prisma.user.findUnique({
+        where: { id: req.user.id },
+        select: { firstName: true, lastName: true, email: true },
+      }),
+    ]);
 
-    if (isNaN(productId)) {
-      return res.status(400).json({ message: 'ID produit invalide.' });
-    }
-
-    if (!rating || rating < 1 || rating > 5) {
-      return res.status(400).json({ message: 'La note (rating) doit être comprise entre 1 et 5.' });
-    }
-
-    const product = await prisma.product.findUnique({ where: { id: productId } });
     if (!product) {
-      return res.status(404).json({ message: 'Produit introuvable.' });
+      return res.status(404).json({ message: 'Product not found.' });
     }
 
-    // Créer l'avis
+    if (!user) {
+      return res.status(404).json({ message: 'User not found.' });
+    }
+
+    const author =
+      user.firstName || user.lastName
+        ? `${user.firstName || ''} ${user.lastName || ''}`.trim()
+        : user.email;
+
     const review = await prisma.review.create({
       data: {
-        productId,
+        productId: req.params.id,
         author,
-        rating: parseInt(rating),
-        comment: comment || '',
+        rating: req.body.rating,
+        comment: req.body.comment || '',
         date: new Date().toLocaleDateString('fr-FR'),
       },
     });
 
-    // Recalculer la note moyenne et le nombre d'avis
-    const allReviews = await prisma.review.findMany({ where: { productId } });
-    const count = allReviews.length;
-    const totalRating = allReviews.reduce((sum, r) => sum + r.rating, 0);
-    const avgRating = parseFloat((totalRating / count).toFixed(1));
+    const allReviews = await prisma.review.findMany({
+      where: { productId: req.params.id },
+      select: { rating: true },
+    });
 
-    // Mettre à jour le produit
+    const reviewsCount = allReviews.length;
+    const rating = Number(
+      (allReviews.reduce((sum, entry) => sum + entry.rating, 0) / reviewsCount).toFixed(1),
+    );
+
     await prisma.product.update({
-      where: { id: productId },
+      where: { id: req.params.id },
       data: {
-        rating: avgRating,
-        reviewsCount: count,
+        rating,
+        reviewsCount,
       },
     });
 
-    res.status(201).json({
-      message: 'Avis ajouté avec succès !',
+    return res.status(201).json({
+      message: 'Review added successfully.',
       review,
     });
   } catch (error) {
-    console.error('Erreur lors de l\'ajout de l\'avis :', error);
-    res.status(500).json({ message: 'Une erreur est survenue lors de l\'ajout de l\'avis.' });
+    console.error('Review creation error:', error);
+    return res.status(500).json({ message: 'Unable to add the review right now.' });
   }
 });
 
@@ -265,239 +239,132 @@ router.post('/:id/reviews', authenticateToken, async (req, res) => {
  * @swagger
  * /api/products:
  *   post:
- *     summary: Créer un nouveau produit (Admin)
+ *     summary: Create a product as an administrator
  *     tags: [Produits]
  *     security:
  *       - bearerAuth: []
- *     requestBody:
- *       required: true
- *       content:
- *         multipart/form-data:
- *           schema:
- *             type: object
- *             required: [name, price, category]
- *             properties:
- *               name:
- *                 type: string
- *                 example: T-Shirt Luxora
- *               description:
- *                 type: string
- *               price:
- *                 type: number
- *                 example: 29.99
- *               stock:
- *                 type: integer
- *                 example: 100
- *               category:
- *                 type: string
- *                 example: Vêtements
- *               image:
- *                 type: string
- *                 format: binary
- *               sizes:
- *                 type: string
- *                 example: S,M,L,XL
- *               colors:
- *                 type: string
- *                 example: Noir,Rouge,Bleu
- *     responses:
- *       201:
- *         description: Produit créé avec succès
  */
-// ── [ADMIN] Créer un nouveau produit (avec image locale) ──
-router.post('/', authenticateToken, requireAdmin, upload.single('image'), async (req, res) => {
-  try {
-    const { name, description, price, stock, category, sizes, colors } = req.body;
+router.post(
+  '/',
+  authenticateToken,
+  requireAdmin,
+  upload.single('image'),
+  validate({ body: createProductSchema }),
+  async (req, res) => {
+    try {
+      const imagePath = req.file ? `/uploads/${req.file.filename}` : '/placeholder.jpg';
 
-    if (!name || !price || !category) {
-      return res.status(400).json({ message: 'Le nom, le prix et la catégorie sont obligatoires.' });
+      const product = await prisma.product.create({
+        data: {
+          name: req.body.name,
+          description: req.body.description,
+          price: req.body.price,
+          stock: req.body.stock,
+          category: req.body.category,
+          image: imagePath,
+          images: imagePath,
+          sizes: req.body.sizes,
+          colors: req.body.colors,
+          isNew: true,
+          isFeatured: false,
+        },
+      });
+
+      return res.status(201).json({
+        message: 'Product created successfully.',
+        product: formatProductResponse(product),
+      });
+    } catch (error) {
+      console.error('Product creation error:', error);
+      return res.status(500).json({ message: 'Unable to create the product right now.' });
     }
+  },
+);
 
-    // Gérer le fichier image chargé
-    let imagePath = '/placeholder.jpg';
-    if (req.file) {
-      // Stocker le chemin relatif pour être servi de manière statique
-      imagePath = `/uploads/${req.file.filename}`;
-    }
-
-    const product = await prisma.product.create({
-      data: {
-        name,
-        description: description || '',
-        price: parseFloat(price),
-        stock: parseInt(stock) || 0,
-        category,
-        image: imagePath,
-        images: imagePath, // L'image principale est aussi dans la galerie
-        sizes: sizes || '', // Déjà formaté en chaîne séparée par des virgules
-        colors: colors || '',
-        isNew: true,
-        isFeatured: false,
-      },
-    });
-
-    res.status(201).json({
-      message: 'Produit créé avec succès !',
-      product: formatProductResponse(product),
-    });
-  } catch (error) {
-    console.error('Erreur de création de produit :', error);
-    res.status(500).json({ message: 'Une erreur est survenue lors de la création du produit.' });
-  }
-});
-
-// ── [ADMIN] Modifier un produit existant ──
 /**
  * @swagger
  * /api/products/{id}:
  *   put:
- *     summary: Modifier un produit existant (Admin)
+ *     summary: Update a product as an administrator
  *     tags: [Produits]
  *     security:
  *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema:
- *           type: integer
- *         description: ID du produit
- *     requestBody:
- *       required: true
- *       content:
- *         multipart/form-data:
- *           schema:
- *             type: object
- *             properties:
- *               name:
- *                 type: string
- *               description:
- *                 type: string
- *               price:
- *                 type: number
- *               stock:
- *                 type: integer
- *               category:
- *                 type: string
- *               image:
- *                 type: string
- *                 format: binary
- *               sizes:
- *                 type: string
- *                 example: S,M,L,XL
- *               colors:
- *                 type: string
- *                 example: Noir,Rouge,Bleu
- *               isFeatured:
- *                 type: boolean
- *               isNew:
- *                 type: boolean
- *     responses:
- *       200:
- *         description: Produit mis a jour avec succes
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 message:
- *                   type: string
- *                 product:
- *                   $ref: '#/components/schemas/Product'
- *       404:
- *         description: Produit non trouve
  */
-router.put('/:id', authenticateToken, requireAdmin, upload.single('image'), async (req, res) => {
-  try {
-    const id = parseInt(req.params.id);
-    if (isNaN(id)) {
-      return res.status(400).json({ message: 'ID produit invalide.' });
+router.put(
+  '/:id',
+  authenticateToken,
+  requireAdmin,
+  upload.single('image'),
+  validate({ params: productIdSchema, body: updateProductSchema }),
+  async (req, res) => {
+    try {
+      const existingProduct = await prisma.product.findUnique({
+        where: { id: req.params.id },
+      });
+
+      if (!existingProduct) {
+        return res.status(404).json({ message: 'Product not found.' });
+      }
+
+      const data = {};
+      if (req.body.name !== undefined) data.name = req.body.name;
+      if (req.body.description !== undefined) data.description = req.body.description;
+      if (req.body.price !== undefined) data.price = req.body.price;
+      if (req.body.stock !== undefined) data.stock = req.body.stock;
+      if (req.body.category !== undefined) data.category = req.body.category;
+      if (req.body.sizes !== undefined) data.sizes = req.body.sizes;
+      if (req.body.colors !== undefined) data.colors = req.body.colors;
+      if (req.body.isFeatured !== undefined) data.isFeatured = stringToBoolean(req.body.isFeatured);
+      if (req.body.isNew !== undefined) data.isNew = stringToBoolean(req.body.isNew);
+
+      if (req.file) {
+        data.image = `/uploads/${req.file.filename}`;
+        data.images = data.image;
+      }
+
+      const updatedProduct = await prisma.product.update({
+        where: { id: req.params.id },
+        data,
+      });
+
+      return res.json({
+        message: 'Product updated successfully.',
+        product: formatProductResponse(updatedProduct),
+      });
+    } catch (error) {
+      console.error('Product update error:', error);
+      return res.status(500).json({ message: 'Unable to update the product right now.' });
     }
+  },
+);
 
-    const { name, description, price, stock, category, sizes, colors, isFeatured, isNew } = req.body;
-
-    const product = await prisma.product.findUnique({ where: { id } });
-    if (!product) {
-      return res.status(404).json({ message: 'Produit introuvable.' });
-    }
-
-    const data = {};
-    if (name) data.name = name;
-    if (description !== undefined) data.description = description;
-    if (price) data.price = parseFloat(price);
-    if (stock !== undefined) data.stock = parseInt(stock);
-    if (category) data.category = category;
-    if (sizes !== undefined) data.sizes = sizes;
-    if (colors !== undefined) data.colors = colors;
-    if (isFeatured !== undefined) data.isFeatured = isFeatured === 'true' || isFeatured === true;
-    if (isNew !== undefined) data.isNew = isNew === 'true' || isNew === true;
-
-    // Si une nouvelle image est chargée
-    if (req.file) {
-      data.image = `/uploads/${req.file.filename}`;
-      // On met également à jour la galerie d'images avec la nouvelle image principale
-      data.images = `/uploads/${req.file.filename}`;
-    }
-
-    const updated = await prisma.product.update({
-      where: { id },
-      data,
-    });
-
-    res.json({
-      message: 'Produit mis à jour avec succès !',
-      product: formatProductResponse(updated),
-    });
-  } catch (error) {
-    console.error('Erreur lors de la modification du produit :', error);
-    res.status(500).json({ message: 'Une erreur est survenue lors de la modification du produit.' });
-  }
-});
-
-// ── [ADMIN] Supprimer un produit ──
 /**
  * @swagger
  * /api/products/{id}:
  *   delete:
- *     summary: Supprimer un produit (Admin)
+ *     summary: Delete a product as an administrator
  *     tags: [Produits]
  *     security:
  *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema:
- *           type: integer
- *         description: ID du produit
- *     responses:
- *       200:
- *         description: Produit supprime avec succes
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/MessageResponse'
- *       404:
- *         description: Produit non trouve
  */
-router.delete('/:id', authenticateToken, requireAdmin, async (req, res) => {
+router.delete('/:id', authenticateToken, requireAdmin, validate({ params: productIdSchema }), async (req, res) => {
   try {
-    const id = parseInt(req.params.id);
-    if (isNaN(id)) {
-      return res.status(400).json({ message: 'ID produit invalide.' });
-    }
+    const product = await prisma.product.findUnique({
+      where: { id: req.params.id },
+    });
 
-    const product = await prisma.product.findUnique({ where: { id } });
     if (!product) {
-      return res.status(404).json({ message: 'Produit introuvable.' });
+      return res.status(404).json({ message: 'Product not found.' });
     }
 
-    await prisma.product.delete({ where: { id } });
+    await prisma.product.delete({
+      where: { id: req.params.id },
+    });
 
-    res.json({ message: 'Produit supprimé avec succès.' });
+    return res.json({ message: 'Product deleted successfully.' });
   } catch (error) {
-    console.error('Erreur de suppression de produit :', error);
-    res.status(500).json({ message: 'Une erreur est survenue lors de la suppression du produit.' });
+    console.error('Product deletion error:', error);
+    return res.status(500).json({ message: 'Unable to delete the product right now.' });
   }
 });
 

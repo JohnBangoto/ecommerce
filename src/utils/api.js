@@ -6,8 +6,11 @@ const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:500
 export async function apiCall(endpoint, options = {}) {
   const url = `${API_BASE_URL}${endpoint}`;
   
-  // Récupérer le token d'authentification stocké localement
-  const token = localStorage.getItem('luxora-token');
+  // Récupérer le token d'authentification stocké localement selon le type de requête (admin ou client)
+  const isAdminRequest = options.isAdmin || endpoint.startsWith('/admin') || endpoint.includes('/status');
+  const token = isAdminRequest
+    ? localStorage.getItem('luxora-admin-token')
+    : localStorage.getItem('luxora-token');
   
   const headers = {
     ...options.headers,

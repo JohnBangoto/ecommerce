@@ -22,6 +22,13 @@ URLs :
 
 Le backend local lit [backend/.env](backend/.env) et pointe vers `localhost:5432`.
 
+Avant le premier lancement backend, synchronise le schema Prisma si besoin :
+
+```bash
+cd backend
+npx prisma db push
+```
+
 ### Mode Docker pour le backend
 
 Utilise PostgreSQL + backend dans Docker, et garde seulement le frontend en local.
@@ -48,6 +55,14 @@ Le backend Docker lit [backend/.env.docker](backend/.env.docker), et le frontend
 
 La variable frontend utilisee est `VITE_API_BASE_URL`.
 
+Variables backend importantes :
+
+- `JWT_SECRET` : obligatoire, au moins 32 caracteres
+- `SEED_ADMIN_PASSWORD` : mot de passe admin utilise par le seed local
+- `CORS_ORIGINS` : liste CSV des origines frontend autorisees
+
+Le seed ne cree plus de compte admin faible de type `admin/admin`.
+
 ## Scripts utiles
 
 ```bash
@@ -59,6 +74,13 @@ npm run docker:up
 npm run docker:down
 npm run docker:logs:backend
 ```
+
+## Notes securite
+
+- Les routes backend utilisent maintenant des validations de payload, du rate limiting et des headers HTTP de securite.
+- Le detail d'une commande n'est plus public par simple ID.
+- Le suivi invite passe par un lien securise avec jeton de suivi.
+- Si tu recrées les donnees de dev, pense a conserver le lien de suivi genere apres checkout.
 
 ## Pourquoi le port 5000 plantait
 

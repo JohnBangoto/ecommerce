@@ -1,4 +1,5 @@
-import { Heart, Menu, Search, ShoppingCart, User, X } from 'lucide-react';
+import { Heart, LogOut, Menu, Package, Search, ShoppingCart, User, X } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../../store/authStore';
 import { useCartStore } from '../../store/cartStore';
@@ -14,8 +15,23 @@ export default function Header() {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const logout = useAuthStore((s) => s.logout);
 
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const userMenuRef = useRef(null);
+
+  // Fermer le dropdown si on clique en dehors
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (userMenuRef.current && !userMenuRef.current.contains(e.target)) {
+        setUserMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
   const handleLogout = () => {
     logout();
+    setUserMenuOpen(false);
     closeMenu();
     navigate('/');
   };
@@ -27,6 +43,9 @@ export default function Header() {
       closeMenu();
     }
   };
+
+  const userInitial = user?.firstName?.[0]?.toUpperCase() || user?.email?.[0]?.toUpperCase() || 'U';
+  const userName = user?.firstName ? `${user.firstName}${user.lastName ? ' ' + user.lastName : ''}` : user?.email;
 
   const navLinks = [
     { to: '/', label: 'Accueil' },
@@ -71,15 +90,57 @@ export default function Header() {
           <button className={styles.iconBtn} aria-label="Favoris">
             <Heart size={20} />
           </button>
+
+          {/* User dropdown */}
           {isAuthenticated ? (
-            <button className={styles.iconBtn} onClick={handleLogout} aria-label="Déconnexion">
-              <span>{user?.firstName || user?.email || 'Déconnexion'}</span>
-            </button>
+            <div className={styles.userMenu} ref={userMenuRef}>
+              <button
+                className={`${styles.userBtn} ${userMenuOpen ? styles.userBtnActive : ''}`}
+                onClick={() => setUserMenuOpen((o) => !o)}
+                aria-label="Mon compte"
+                aria-expanded={userMenuOpen}
+              >
+                <div className={styles.userAvatar}>{userInitial}</div>
+                <span className={styles.userNameLabel}>{user?.firstName || 'Mon compte'}</span>
+              </button>
+
+              {userMenuOpen && (
+                <div className={styles.dropdown} role="menu">
+                  <div className={styles.dropdownHeader}>
+                    <div className={styles.dropdownAvatar}>{userInitial}</div>
+                    <div>
+                      <p className={styles.dropdownName}>{userName}</p>
+                      <p className={styles.dropdownEmail}>{user?.email}</p>
+                    </div>
+                  </div>
+                  <div className={styles.dropdownDivider} />
+                  <Link
+                    to="/mes-commandes"
+                    className={styles.dropdownItem}
+                    onClick={() => setUserMenuOpen(false)}
+                    role="menuitem"
+                  >
+                    <Package size={16} />
+                    Mes commandes
+                  </Link>
+                  <div className={styles.dropdownDivider} />
+                  <button
+                    className={`${styles.dropdownItem} ${styles.dropdownLogout}`}
+                    onClick={handleLogout}
+                    role="menuitem"
+                  >
+                    <LogOut size={16} />
+                    Se déconnecter
+                  </button>
+                </div>
+              )}
+            </div>
           ) : (
             <Link to="/login" className={styles.iconBtn} onClick={closeMenu} aria-label="Se connecter">
               <User size={20} />
             </Link>
           )}
+
           <button
             className={styles.cartBtn}
             onClick={openCart}
@@ -119,6 +180,18 @@ export default function Header() {
                 {link.label}
               </Link>
             ))}
+            {isAuthenticated && (
+              <>
+                <Link to="/mes-commandes" className={styles.mobileNavLink} onClick={closeMenu}>
+                  <Package size={16} style={{ verticalAlign: 'middle', marginRight: 8 }} />
+                  Mes commandes
+                </Link>
+                <button className={`${styles.mobileNavLink} ${styles.mobileLogout}`} onClick={handleLogout}>
+                  <LogOut size={16} style={{ verticalAlign: 'middle', marginRight: 8 }} />
+                  Se déconnecter
+                </button>
+              </>
+            )}
           </nav>
         </div>
       )}

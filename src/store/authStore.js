@@ -22,6 +22,12 @@ export const useAuthStore = create(
             isAuthenticated: true,
             loading: false,
           });
+
+          // Conserver le panier actuel (permettre le checkout après connexion)
+          // mais vider l'historique de commandes de l'utilisateur précédent
+          const { useOrderStore } = await import('./orderStore');
+          useOrderStore.getState().clearOrders();
+
           return response.user;
         } catch (error) {
           set({ loading: false, error: error.message });
@@ -40,6 +46,11 @@ export const useAuthStore = create(
             isAuthenticated: true,
             loading: false,
           });
+
+          // Conserver le panier actuel mais vider l'historique de commandes de l'utilisateur précédent
+          const { useOrderStore } = await import('./orderStore');
+          useOrderStore.getState().clearOrders();
+
           return response.user;
         } catch (error) {
           set({ loading: false, error: error.message });
@@ -47,9 +58,15 @@ export const useAuthStore = create(
         }
       },
 
-      logout: () => {
+      logout: async () => {
         localStorage.removeItem('luxora-token');
         set({ user: null, token: null, isAuthenticated: false, error: null });
+
+        // Vider le panier et l'historique à la déconnexion
+        const { useCartStore } = await import('./cartStore');
+        const { useOrderStore } = await import('./orderStore');
+        useCartStore.getState().clearCart();
+        useOrderStore.getState().clearOrders();
       },
     }),
     {

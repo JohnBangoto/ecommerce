@@ -220,13 +220,24 @@ export default function Produit() {
               </button>
             </div>
 
-            <Link
-              to={isAuthenticated ? '/commande' : '/login'}
+            <button
               className={styles.buyNowBtn}
-              state={isAuthenticated ? {} : { from: location }}
+              disabled={product.stock === 0}
+              onClick={() => {
+                if (!isAuthenticated) {
+                  addToast('Connectez-vous pour commander.', 'warning');
+                  navigate('/login', { state: { from: location } });
+                  return;
+                }
+                addItem(product, quantity, {
+                  size: selectedSize || undefined,
+                  color: selectedColor || undefined,
+                });
+                navigate('/commande');
+              }}
             >
               {isAuthenticated ? 'Commander maintenant' : 'Connectez-vous pour commander'}
-            </Link>
+            </button>
 
             {/* Assurances */}
             <div className={styles.guarantees}>

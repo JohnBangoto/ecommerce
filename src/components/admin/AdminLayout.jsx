@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
+import { useAdminAuthStore } from '../../store/adminAuthStore';
 import styles from './AdminLayout.module.css';
 
 const navItems = [
@@ -23,6 +24,15 @@ const navItems = [
 export default function AdminLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const navigate = useNavigate();
+  const { adminUser, adminLogout } = useAdminAuthStore();
+
+  const handleLogout = () => {
+    adminLogout();
+    navigate('/admin/login');
+  };
+
+  const adminName = adminUser ? `${adminUser.firstName || ''} ${adminUser.lastName || ''}`.trim() || adminUser.email : 'Administrateur';
+  const adminInitial = adminUser?.firstName?.[0]?.toUpperCase() || adminUser?.email?.[0]?.toUpperCase() || 'A';
 
   return (
     <div className={styles.shell}>
@@ -55,6 +65,34 @@ export default function AdminLayout() {
             </NavLink>
           ))}
         </nav>
+
+        {/* Profil & Déconnexion */}
+        <div className={`${styles.profileSection} ${sidebarOpen ? styles.profileOpen : styles.profileCollapsed}`}>
+          <div className={styles.profileInfo}>
+            <div className={styles.adminAvatar} title={!sidebarOpen ? `${adminName} (${adminUser?.email})` : undefined}>
+              {adminInitial}
+            </div>
+            {sidebarOpen && (
+              <div className={styles.adminMeta}>
+                <span className={styles.adminName}>{adminName}</span>
+                <span className={styles.adminEmail}>{adminUser?.email}</span>
+              </div>
+            )}
+          </div>
+          <button 
+            className={styles.logoutBtn} 
+            onClick={handleLogout}
+            title="Se déconnecter"
+            aria-label="Se déconnecter"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+              <polyline points="16 17 21 12 16 7" />
+              <line x1="21" y1="12" x2="9" y2="12" />
+            </svg>
+            {sidebarOpen && <span>Déconnexion</span>}
+          </button>
+        </div>
 
         <div className={styles.sidebarFooter}>
           <button

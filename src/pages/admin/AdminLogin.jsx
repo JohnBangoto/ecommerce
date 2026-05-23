@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { useAuthStore } from '../../store/authStore';
+import { useAdminAuthStore } from '../../store/adminAuthStore';
 import { useUIStore } from '../../store/uiStore';
 import styles from './AdminLogin.module.css';
 
@@ -9,29 +9,21 @@ export default function AdminLogin() {
   const navigate = useNavigate();
   const location = useLocation();
   const addToast = useUIStore((s) => s.addToast);
-  const { login, logout, isAuthenticated } = useAuthStore();
+  const { adminLogin, isAdminAuthenticated } = useAdminAuthStore();
   const [loading, setLoading] = useState(false);
   const { register, handleSubmit, formState: { errors } } = useForm();
 
   useEffect(() => {
-    if (isAuthenticated) {
+    if (isAdminAuthenticated) {
       // If already authenticated, go to admin dashboard
       navigate('/admin');
     }
-  }, [isAuthenticated, navigate]);
+  }, [isAdminAuthenticated, navigate]);
 
   const onSubmit = async (data) => {
     setLoading(true);
     try {
-      const user = await login(data);
-      if (!user || user.role !== 'admin') {
-        // logout if not admin
-        logout();
-        addToast('Accès admin refusé : compte non administrateur', 'warning');
-        setLoading(false);
-        return;
-      }
-
+      await adminLogin(data);
       addToast('Connexion admin réussie !');
       navigate('/admin');
     } catch (err) {

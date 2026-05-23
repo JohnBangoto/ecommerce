@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { Building2, Check, CreditCard, Lock, Shield } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
-import { CreditCard, Smartphone, Building2, Lock, Check, Shield } from 'lucide-react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useCartStore } from '../store/cartStore';
 import { useOrderStore } from '../store/orderStore';
+import { useUIStore } from '../store/uiStore';
 import formatPrice from '../utils/formatPrice';
 import styles from './Paiement.module.css';
 
@@ -31,35 +32,57 @@ export default function Paiement() {
   const location = useLocation();
   const { items, getTotal, clearCart } = useCartStore();
   const addOrder = useOrderStore((s) => s.addOrder);
-  const [method, setMethod] = useState('card');
+  const addToast = useUIStore((s) => s.addToast);
+  const [method, setMethod] = useState('virement');
   const [processing, setProcessing] = useState(false);
   const { register, handleSubmit, formState: { errors }, watch } = useForm();
   const total = getTotal();
   const shippingCost = total >= 50000 ? 0 : 3500;
   const grandTotal = total + shippingCost;
 
+  const shippingData = location.state?.shippingData;
 
-  const formatCardNumber = (val) => val?.replace(/\D/g, '').replace(/(.{4})/g, '$1 ').trim().slice(0, 19);
+  const cartCount = items.reduce((acc, i) => acc + i.quantity, 0);
 
-  const onSubmit = async (data) => {
+  // Garde de sécurité : si les données de livraison sont absentes (refresh, navigation directe),
+  // ou si le panier est vide, rediriger vers l'étape d'adresse ou catalogue plutôt que d'envoyer des données invalides
+  useEffect(() => {
+    if (cartCount === 0) {
+      addToast('Votre panier est vide.', 'warning');
+      navigate('/catalogue', { replace: true });
+    } else if (!shippingData) {
+      addToast('Veuillez renseigner votre adresse de livraison.', 'warning');
+      navigate('/commande', { replace: true });
+    }
+  }, [shippingData, cartCount, addToast, navigate]);
+
+  const onSubmit = async () => {
+    if (!shippingData) return; // Double sécurité
+
     setProcessing(true);
-    await new Promise(r => setTimeout(r, 2000)); // Simulate API
-    const order = addOrder({
-      items: items.map(i => ({
-        productId: i.product.id,
-        name: i.product.name,
-        quantity: i.quantity,
-        price: i.product.price,
-        image: i.product.image,
-      })),
-      subtotal: total,
-      shipping: shippingCost,
-      total: grandTotal,
-      shippingAddress: location.state?.shippingData || {},
-      paymentMethod: method,
-    });
-    clearCart();
-    navigate(`/confirmation/${order.id}`);
+    try {
+      await new Promise(r => setTimeout(r, 2000)); // Simulate API
+      const order = await addOrder({
+        items: items.map(i => ({
+          productId: i.product.id,
+          quantity: i.quantity,
+          // Correctement extraits depuis les options du cartStore
+          size: i.options?.size || undefined,
+          color: i.options?.color || undefined,
+        })),
+        total: grandTotal,
+        shippingAddress: shippingData,
+        paymentMethod: method,
+      });
+      clearCart();
+      addToast('Votre commande a été passée avec succès. Elle est transmise à l\'administrateur.', 'success');
+      navigate(`/confirmation/${order.id}`);
+    } catch (err) {
+      console.error(err);
+      addToast(err?.message || 'Une erreur est survenue lors de la validation de votre commande.', 'error');
+    } finally {
+      setProcessing(false);
+    }
   };
 
   return (
@@ -134,7 +157,6 @@ export default function Paiement() {
                       placeholder="1234 5678 9012 3456"
                       maxLength={19}
                       {...register('cardNumber', {
-                        required: 'Numéro requis',
                         pattern: { value: /^[\d\s]{16,19}$/, message: 'Numéro invalide' }
                       })}
                     />
@@ -146,7 +168,7 @@ export default function Paiement() {
                       className={`${styles.input} ${errors.cardName ? styles.inputError : ''}`}
                       placeholder="MARIE DUPONT"
                       style={{ textTransform: 'uppercase' }}
-                      {...register('cardName', { required: 'Nom requis' })}
+                      {...register('cardName')}
                     />
                     {errors.cardName && <span className={styles.error}>{errors.cardName.message}</span>}
                   </div>
@@ -158,7 +180,6 @@ export default function Paiement() {
                         placeholder="MM/AA"
                         maxLength={5}
                         {...register('expiry', {
-                          required: 'Date requise',
                           pattern: { value: /^\d{2}\/\d{2}$/, message: 'Format MM/AA' }
                         })}
                       />
@@ -172,7 +193,6 @@ export default function Paiement() {
                         maxLength={4}
                         type="password"
                         {...register('cvv', {
-                          required: 'CVV requis',
                           pattern: { value: /^\d{3,4}$/, message: 'CVV invalide' }
                         })}
                       />
@@ -204,7 +224,7 @@ export default function Paiement() {
                       <input
                         className={styles.input}
                         placeholder="77 123 45 67"
-                        {...register('wavePhone', { required: method==='wave' ? 'Numéro requis' : false })}
+                        {...register('wavePhone')}
                       />
                     </div>
                     {errors.wavePhone && <span className={styles.error}>{errors.wavePhone.message}</span>}
@@ -235,7 +255,7 @@ export default function Paiement() {
                       <input
                         className={styles.input}
                         placeholder="77 123 45 67"
-                        {...register('orangePhone', { required: method==='orange' ? 'Numéro requis' : false })}
+                        {...register('orangePhone')}
                       />
                     </div>
                     {errors.orangePhone && <span className={styles.error}>{errors.orangePhone.message}</span>}
@@ -271,7 +291,7 @@ export default function Paiement() {
                   Traitement en cours...
                 </span>
               ) : (
-                <><Shield size={18} /> Payer {formatPrice(grandTotal)}</>
+                <><Shield size={18} /> Passer commande {formatPrice(grandTotal)}</>
               )}
             </button>
           </form>

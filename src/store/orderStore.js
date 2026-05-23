@@ -8,35 +8,46 @@ export const useOrderStore = create(
     (set, get) => ({
       orders: [],
       currentOrder: null,
+      trackingTokens: {},
       loading: false,
       error: null,
 
-      // Ajouter une commande via le backend (Paiement simulé)
       addOrder: async (orderData) => {
         set({ loading: true, error: null });
+
         try {
           const response = await api.post('/orders/checkout-simulated', orderData);
           const newOrder = response.order;
+          const trackingToken = response.order?.trackingToken || null;
 
-          set(s => ({
-            orders: [newOrder, ...s.orders],
+          set((state) => ({
+            orders: [newOrder, ...state.orders],
             currentOrder: newOrder,
+            trackingTokens: trackingToken
+              ? { ...state.trackingTokens, [newOrder.id]: trackingToken }
+              : state.trackingTokens,
             loading: false,
           }));
 
-          // ── Optionnel : Synchroniser également l'adminStore local pour la démo ──
           useAdminStore.getState().addOrder(newOrder);
 
           return newOrder;
         } catch (error) {
           set({ error: error.message, loading: false });
+
+          // Si la session est expirée (token obsolète), déconnecter proprement
+          if (error.message?.includes('session a expiré') || error.message?.includes('session') || error.message?.includes('Authentication')) {
+            const { useAuthStore } = await import('./authStore');
+            useAuthStore.getState().logout();
+          }
+
           throw error;
         }
       },
 
-      // Récupérer l'historique des commandes de l'utilisateur connecté
       fetchUserOrders: async () => {
-        set({ loading: true });
+        set({ loading: true, error: null });
+
         try {
           const orders = await api.get('/orders/my-orders');
           set({ orders, loading: false });
@@ -47,23 +58,30 @@ export const useOrderStore = create(
 
       setCurrentOrder: (order) => set({ currentOrder: order }),
 
-      // Récupérer une commande par son ID (depuis l'API ou le cache local)
-      getOrderById: async (id) => {
-        // Chercher d'abord dans le cache local
-        const localOrder = get().orders.find(o => o.id === id);
-        if (localOrder) return localOrder;
+      clearOrders: () => set({ orders: [], currentOrder: null, trackingTokens: {}, error: null }),
 
-        // Sinon charger depuis le serveur
+      getTrackingToken: (id) => get().trackingTokens[id] || null,
+
+      getOrderById: async (id, options = {}) => {
+        const localOrder = get().orders.find((order) => order.id === id);
+        if (localOrder) {
+          return localOrder;
+        }
+
+        const trackingToken = options.trackingToken || get().trackingTokens[id];
+
         try {
-          const order = await api.get(`/orders/${id}`);
-          return order;
+          if (trackingToken) {
+            return await api.get(`/orders/track/${id}?token=${encodeURIComponent(trackingToken)}`);
+          }
+
+          return await api.get(`/orders/${id}`);
         } catch (error) {
           console.error(`Erreur de chargement de la commande ${id} :`, error);
           return null;
         }
       },
     }),
-    { name: 'luxora-order-store' }
-  )
+    { name: 'luxora-order-store' },
+  ),
 );
-

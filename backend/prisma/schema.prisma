@@ -58,6 +58,7 @@ model Order {
   paymentStatus   String      @default("paid")      // "paid" | "pending"
   shippingAddress String      // JSON stringified contenant firstName, lastName, address, city, zip, phone, email, country
   trackingNumber  String
+  trackingAccessHash String?
   items           OrderItem[]
   createdAt       DateTime    @default(now())
 }

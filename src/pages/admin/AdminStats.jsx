@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useEffect } from 'react';
 import { useAdminStore } from '../../store/adminStore';
 import { orderStatusLabels } from '../../data/orders';
 import { categories } from '../../data/products';
@@ -10,7 +10,12 @@ const STATUS_COLORS = { confirmed:'#1A7EC8', prepared:'#D4860A', shipped:'#2C9E7
 const CAT_COLORS = ['#C9A96E','#7EB8C9','#9EC97E','#C97E9E','#C9B87E','#7E9EC9','#B87EC9'];
 
 export default function AdminStats() {
-  const { getDashboardStats, orders, products } = useAdminStore();
+  const { getDashboardStats, orders, products, loadOrders } = useAdminStore();
+
+  useEffect(() => {
+    loadOrders();
+  }, [loadOrders]);
+
   const stats = useMemo(() => getDashboardStats(), [orders, products]);
 
   // CA par catégorie

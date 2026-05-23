@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAdminStore } from '../../store/adminStore';
 import { orderStatusLabels } from '../../data/orders';
@@ -9,7 +9,12 @@ import styles from './Dashboard.module.css';
 const MONTHS_FR = ['Jan','Fév','Mar','Avr','Mai','Jun','Jul','Aoû','Sep','Oct','Nov','Déc'];
 
 export default function Dashboard() {
-  const { getDashboardStats, orders, products, resetToDemo } = useAdminStore();
+  const { getDashboardStats, orders, products, resetToDemo, loadOrders } = useAdminStore();
+
+  useEffect(() => {
+    loadOrders();
+  }, [loadOrders]);
+
   const stats = useMemo(() => getDashboardStats(), [orders, products]);
 
   // Dernières commandes

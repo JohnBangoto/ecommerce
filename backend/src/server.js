@@ -1,45 +1,46 @@
 import cors from 'cors';
-import dotenv from 'dotenv';
 import express from 'express';
+import rateLimit from 'express-rate-limit';
 import fs from 'fs';
+import helmet from 'helmet';
+import multer from 'multer';
 import path from 'path';
 import swaggerUi from 'swagger-ui-express';
 import { fileURLToPath } from 'url';
-import { buildSwaggerSpec } from './swagger.js';
-
-// Charger les variables d'environnement
-dotenv.config();
-
-// Imports des routes
+import { env } from './config/env.js';
 import adminRoutes from './routes/admin.js';
 import authRoutes from './routes/auth.js';
 import orderRoutes from './routes/orders.js';
 import productRoutes from './routes/products.js';
+import { buildSwaggerSpec } from './swagger.js';
 
 const app = express();
-const PORT = process.env.PORT || 5000;
+const PORT = env.PORT;
 
-// Configuration des chemins ES Modules
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-
-// Middleware CORS - Permet d'autoriser le frontend sur le port 5173 (Vite default)
-app.use(cors({
-  origin: ['http://localhost:5173', 'http://127.0.0.1:5173'],
-  credentials: true
-}));
-
-// Middlewares globaux
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
-
-// S'assurer que le dossier des uploads existe et le servir de maniere statique
 const uploadsPath = path.join(__dirname, '../public/uploads');
+
 if (!fs.existsSync(uploadsPath)) {
   fs.mkdirSync(uploadsPath, { recursive: true });
 }
 
-app.use('/uploads', express.static(uploadsPath));
+const apiLimiter = rateLimit({
+  windowMs: env.API_RATE_LIMIT_WINDOW_MS,
+  max: env.API_RATE_LIMIT_MAX,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { message: 'Too many requests. Please try again later.' },
+});
+
+const authLimiter = rateLimit({
+  windowMs: env.AUTH_RATE_LIMIT_WINDOW_MS,
+  max: env.AUTH_RATE_LIMIT_MAX,
+  standardHeaders: true,
+  legacyHeaders: false,
+  skipSuccessfulRequests: true,
+  message: { message: 'Too many authentication attempts. Please try again later.' },
+});
 
 const swaggerUiOptions = {
   customSiteTitle: 'Luxora API Docs',
@@ -53,6 +54,41 @@ const swaggerUiOptions = {
   },
 };
 
+app.disable('x-powered-by');
+app.set('trust proxy', 1);
+
+app.use(
+  helmet({
+    crossOriginResourcePolicy: { policy: 'cross-origin' },
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        imgSrc: ["'self'", 'data:'],
+        styleSrc: ["'self'", "'unsafe-inline'"],
+        scriptSrc: ["'self'", "'unsafe-inline'"],
+        connectSrc: ["'self'"],
+      },
+    },
+  }),
+);
+
+app.use(
+  cors({
+    origin: (origin, callback) => {
+      if (!origin || env.corsOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+
+      return callback(new Error('Origin not allowed by CORS.'));
+    },
+    credentials: true,
+  }),
+);
+
+app.use(express.json({ limit: '1mb' }));
+app.use(express.urlencoded({ extended: true, limit: '1mb' }));
+app.use('/uploads', express.static(uploadsPath));
+
 app.get('/api-docs.json', (req, res) => {
   const baseUrl = `${req.protocol}://${req.get('host')}`;
   res.json(buildSwaggerSpec(baseUrl));
@@ -62,52 +98,56 @@ app.use('/api-docs', swaggerUi.serveFiles(null, swaggerUiOptions));
 app.get('/api-docs', swaggerUi.setup(null, swaggerUiOptions));
 app.get('/api-docs/', swaggerUi.setup(null, swaggerUiOptions));
 
-// Route de test
 app.get('/', (req, res) => {
   res.json({
-    message: 'Serveur Luxora E-commerce operationnel !',
+    message: 'Luxora backend is running.',
     documentation: '/api-docs',
   });
 });
 
-// Enregistrement des routes API
-app.use('/api/auth', authRoutes);
+app.use('/api', apiLimiter);
+app.use('/api/auth', authLimiter, authRoutes);
 app.use('/api/products', productRoutes);
 app.use('/api/orders', orderRoutes);
 app.use('/api/admin', adminRoutes);
 
-// Middleware de gestion globale des erreurs
 app.use((err, req, res, next) => {
-  console.error('Erreur attrapee par Express :', err.stack);
-  res.status(500).json({
-    message: err.message || 'Une erreur interne est survenue sur le serveur.',
-    error: process.env.NODE_ENV === 'development' ? err : {}
+  if (err instanceof multer.MulterError) {
+    return res.status(400).json({ message: err.message });
+  }
+
+  if (err?.message === 'Origin not allowed by CORS.') {
+    return res.status(403).json({ message: err.message });
+  }
+
+  console.error('Express error:', err);
+
+  return res.status(err?.statusCode || 500).json({
+    message: err?.message || 'An internal server error occurred.',
+    error: env.isProduction ? undefined : err,
   });
 });
 
-// Lancement du serveur
 const server = app.listen(PORT, () => {
   const address = server.address();
   const activePort = typeof address === 'object' && address ? address.port : PORT;
 
   console.log('=========================================');
-  console.log(' Serveur en cours d\'execution sur :');
+  console.log(' Luxora backend is running on:');
   console.log(`  http://localhost:${activePort}`);
-  console.log(`  Documentation Swagger : http://localhost:${activePort}/api-docs`);
-  console.log(' Dossier uploads statique configure.');
+  console.log(`  Swagger documentation: http://localhost:${activePort}/api-docs`);
   console.log('=========================================');
 });
 
 server.on('error', (error) => {
   if (error.code === 'EADDRINUSE') {
-    console.error(`Le port ${PORT} est deja utilise.`);
-    console.error('Choisis un seul mode de lancement backend :');
-    console.error(' - Mode local : `npm run dev:db` puis `npm run dev`');
-    console.error(' - Mode Docker : `npm run docker:up` puis `npm run dev:frontend:docker`');
-    console.error(' - Ou change `PORT` dans `backend/.env` si tu veux un autre port local.');
+    console.error(`Port ${PORT} is already in use.`);
+    console.error('Choose one backend runtime mode only:');
+    console.error(' - Local mode: `npm run dev:db` then `npm run dev`');
+    console.error(' - Docker mode: `npm run docker:up` then `npm run dev:frontend:docker`');
     process.exit(1);
   }
 
-  console.error('Erreur serveur au demarrage :', error);
+  console.error('Server startup error:', error);
   process.exit(1);
 });

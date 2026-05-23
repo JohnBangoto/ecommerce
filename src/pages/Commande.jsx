@@ -29,12 +29,17 @@ export default function Commande() {
   const shippingCost = selectedDelivery === 'free' ? 0 : delivery?.price || 0;
   const grandTotal = total + shippingCost;
 
+  const cartCount = items.reduce((acc, i) => acc + i.quantity, 0);
+
   useEffect(() => {
     if (!isAuthenticated) {
       addToast('Connexion requise pour finaliser votre commande.', 'warning');
       navigate('/login', { state: { from: location } });
+    } else if (cartCount === 0) {
+      addToast('Votre panier est vide.', 'warning');
+      navigate('/catalogue', { replace: true });
     }
-  }, [isAuthenticated, addToast, navigate, location]);
+  }, [isAuthenticated, cartCount, addToast, navigate, location]);
 
   const onSubmit = (data) => {
     navigate('/paiement', { state: { shippingData: data, delivery: selectedDelivery } });

@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { products as initialProducts } from '../data/products';
-import { mockOrders as initialOrders } from '../data/orders';
+import { api } from '../utils/api';
 
 const generateMockReviewsList = (product) => {
   const authors = [
@@ -49,12 +49,14 @@ export const useAdminStore = create(
   persist(
     (set, get) => ({
       products: initialProducts.map(p => ({ ...p, reviewsList: generateMockReviewsList(p) })),
-      orders:   initialOrders.map(o => ({ ...o })),
+      orders:   [],
+      ordersLoading: false,
+      ordersError: null,
 
       // ─── Réinitialiser aux données de démonstration ────────────────
       resetToDemo: () => set({
         products: initialProducts.map(p => ({ ...p, reviewsList: generateMockReviewsList(p) })),
-        orders:   initialOrders.map(o => ({ ...o })),
+        orders:   [],
       }),
 
       // ─── Produits ──────────────────────────────────────────────────
@@ -74,6 +76,17 @@ export const useAdminStore = create(
             },
           ],
         })),
+
+      loadOrders: async () => {
+        set({ ordersLoading: true, ordersError: null });
+        try {
+          const orders = await api.get('/admin/orders');
+          set({ orders, ordersLoading: false });
+        } catch (error) {
+          console.error('Unable to load admin orders:', error);
+          set({ ordersLoading: false, ordersError: error.message || 'Impossible de charger les commandes.' });
+        }
+      },
 
       updateProduct: (id, changes) =>
         set(state => ({
@@ -121,26 +134,35 @@ export const useAdminStore = create(
           orders: [order, ...state.orders],
         })),
 
-      updateOrderStatus: (id, status) =>
-        set(state => {
-          const STEPS = ['confirmed', 'prepared', 'shipped', 'delivered'];
-          const stepIdx = STEPS.indexOf(status);
-          return {
-            orders: state.orders.map(o => {
-              if (o.id !== id) return o;
-              // Met à jour la timeline : étapes passées = done, futures = pending
-              const timeline = (o.timeline || []).map(step => {
-                const sIdx = STEPS.indexOf(step.step);
-                if (sIdx < 0) return step; // ex: cancelled
-                if (sIdx <= stepIdx) {
-                  return { ...step, done: true, date: step.date || new Date().toISOString() };
-                }
-                return { ...step, done: false, date: null };
-              });
-              return { ...o, status, timeline };
-            }),
-          };
-        }),
+      updateOrderStatus: async (id, status) => {
+        try {
+          const response = await api.put(`/orders/${id}/status`, { status });
+          const updatedOrder = response.order;
+          set(state => ({
+            orders: state.orders.map(o => (o.id === id ? updatedOrder : o)),
+          }));
+        } catch (error) {
+          console.error('Unable to update order status:', error);
+          set(state => {
+            const STEPS = ['confirmed', 'prepared', 'shipped', 'delivered'];
+            const stepIdx = STEPS.indexOf(status);
+            return {
+              orders: state.orders.map(o => {
+                if (o.id !== id) return o;
+                const timeline = (o.timeline || []).map(step => {
+                  const sIdx = STEPS.indexOf(step.step);
+                  if (sIdx < 0) return step;
+                  if (sIdx <= stepIdx) {
+                    return { ...step, done: true, date: step.date || new Date().toISOString() };
+                  }
+                  return { ...step, done: false, date: null };
+                });
+                return { ...o, status, timeline };
+              }),
+            };
+          });
+        }
+      },
 
       // ─── Sélecteurs ────────────────────────────────────────────────
       getStockAlerts: () => {
@@ -210,7 +232,7 @@ export const useAdminStore = create(
     }),
     {
       name: 'luxora-admin-store',
-      version: 3, // Passe à 3 pour les avis clients et les champs couleurs/tailles
+      version: 3,
       migrate: (persistedState, version) => {
         let products = persistedState?.products || [];
         products = products.map(p => {
@@ -222,8 +244,13 @@ export const useAdminStore = create(
         return {
           ...persistedState,
           products,
+          orders: [],
         };
       },
+      // Ne pas persister les orders : elles viennent toujours du backend
+      partialize: (state) => ({
+        products: state.products,
+      }),
     }
   )
 );
