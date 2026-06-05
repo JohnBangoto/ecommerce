@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import CartDrawer from './components/cart/CartDrawer';
 import Footer from './components/layout/Footer';
@@ -45,7 +46,12 @@ function RequireAuth({ children }) {
 function RequireAdmin({ children }) {
   const isAdminAuthenticated = useAdminAuthStore((s) => s.isAdminAuthenticated);
   const adminUser = useAdminAuthStore((s) => s.adminUser);
+  const user = useAuthStore((s) => s.user);
   const location = useLocation();
+
+  if (user && user.role !== 'admin') {
+    return <Navigate to="/" replace />;
+  }
 
   if (!isAdminAuthenticated || !adminUser || adminUser.role !== 'admin') {
     return <Navigate to="/admin/login" state={{ from: location }} replace />;
@@ -54,7 +60,35 @@ function RequireAdmin({ children }) {
   return children;
 }
 
+function FrontOfficeGuard({ children }) {
+  const isAdminAuthenticated = useAdminAuthStore((s) => s.isAdminAuthenticated);
+  const user = useAuthStore((s) => s.user);
+
+  if (isAdminAuthenticated || user?.role === 'admin') {
+    return <Navigate to="/admin" replace />;
+  }
+
+  return children;
+}
+
 export default function App() {
+  const user = useAuthStore((s) => s.user);
+  const token = useAuthStore((s) => s.token);
+  const logout = useAuthStore((s) => s.logout);
+
+  useEffect(() => {
+    if (user?.role === 'admin' && token) {
+      // Migrate admin session to admin store
+      useAdminAuthStore.setState({
+        adminUser: user,
+        adminToken: token,
+        isAdminAuthenticated: true,
+      });
+      localStorage.setItem('luxora-admin-token', token);
+      logout();
+    }
+  }, [user, token, logout]);
+
   return (
     <BrowserRouter>
       <Routes>
@@ -70,31 +104,33 @@ export default function App() {
 
         {/* ── Front Office ── */}
         <Route path="/*" element={
-          <div className={styles.appWrapper}>
-            <Header />
-            <div className={styles.pageContent}>
-              <Routes>
-                <Route path="/" element={<Home />} />
-                <Route path="/catalogue" element={<Catalogue />} />
-                <Route path="/produit/:id" element={<Produit />} />
-                <Route path="/recherche" element={<Recherche />} />
-                <Route path="/panier" element={<Panier />} />
-                <Route path="/commande" element={<RequireAuth><Commande /></RequireAuth>} />
-                <Route path="/paiement" element={<RequireAuth><Paiement /></RequireAuth>} />
-                <Route path="/mes-commandes" element={<RequireAuth><MesCommandes /></RequireAuth>} />
-                <Route path="/login" element={<Login />} />
-                <Route path="/confirmation/:orderId" element={<Confirmation />} />
-                <Route path="/confirmation" element={<Confirmation />} />
-                <Route path="/suivi/:orderId" element={<Suivi />} />
-                <Route path="/suivi" element={<Suivi />} />
-                <Route path="/contact" element={<Contact />} />
-                <Route path="*" element={<NotFound />} />
-              </Routes>
+          <FrontOfficeGuard>
+            <div className={styles.appWrapper}>
+              <Header />
+              <div className={styles.pageContent}>
+                <Routes>
+                  <Route path="/" element={<Home />} />
+                  <Route path="/catalogue" element={<Catalogue />} />
+                  <Route path="/produit/:id" element={<Produit />} />
+                  <Route path="/recherche" element={<Recherche />} />
+                  <Route path="/panier" element={<Panier />} />
+                  <Route path="/commande" element={<RequireAuth><Commande /></RequireAuth>} />
+                  <Route path="/paiement" element={<RequireAuth><Paiement /></RequireAuth>} />
+                  <Route path="/mes-commandes" element={<RequireAuth><MesCommandes /></RequireAuth>} />
+                  <Route path="/login" element={<Login />} />
+                  <Route path="/confirmation/:orderId" element={<Confirmation />} />
+                  <Route path="/confirmation" element={<Confirmation />} />
+                  <Route path="/suivi/:orderId" element={<Suivi />} />
+                  <Route path="/suivi" element={<Suivi />} />
+                  <Route path="/contact" element={<Contact />} />
+                  <Route path="*" element={<NotFound />} />
+                </Routes>
+              </div>
+              <Footer />
+              <CartDrawer />
+              <ToastContainer />
             </div>
-            <Footer />
-            <CartDrawer />
-            <ToastContainer />
-          </div>
+          </FrontOfficeGuard>
         } />
       </Routes>
     </BrowserRouter>
