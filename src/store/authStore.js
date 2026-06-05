@@ -15,6 +15,20 @@ export const useAuthStore = create(
         set({ loading: true, error: null });
         try {
           const response = await api.post('/auth/login', { email, password });
+          if (response.user && response.user.role === 'admin') {
+            const { useAdminAuthStore } = await import('./adminAuthStore');
+            localStorage.setItem('luxora-admin-token', response.token);
+            useAdminAuthStore.setState({
+              adminUser: response.user,
+              adminToken: response.token,
+              isAdminAuthenticated: true,
+              adminLoading: false,
+              adminError: null,
+            });
+            set({ loading: false });
+            return response.user;
+          }
+
           localStorage.setItem('luxora-token', response.token);
           set({
             user: response.user,

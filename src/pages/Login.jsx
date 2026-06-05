@@ -15,10 +15,14 @@ export default function Login() {
 
   useEffect(() => {
     if (isAuthenticated) {
-      const destination = location.state?.from?.pathname || '/';
-      navigate(destination, { replace: true });
+      if (user?.role === 'admin') {
+        navigate('/admin', { replace: true });
+      } else {
+        const destination = location.state?.from?.pathname || '/';
+        navigate(destination, { replace: true });
+      }
     }
-  }, [isAuthenticated, location, navigate]);
+  }, [isAuthenticated, user, location, navigate]);
 
   const onSubmit = async (data) => {
     try {
@@ -26,7 +30,12 @@ export default function Login() {
         await register(data);
         addToast('Inscription réussie, vous êtes connecté(e) !');
       } else {
-        await login(data);
+        const loggedUser = await login(data);
+        if (loggedUser && loggedUser.role === 'admin') {
+          addToast('Connexion administrateur réussie !');
+          navigate('/admin', { replace: true });
+          return;
+        }
         addToast('Connexion réussie !');
       }
     } catch (err) {

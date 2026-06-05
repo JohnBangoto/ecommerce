@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAdminAuthStore } from '../../store/adminAuthStore';
+import { useAuthStore } from '../../store/authStore';
 import { useUIStore } from '../../store/uiStore';
 import styles from './AdminLogin.module.css';
 
@@ -12,6 +13,14 @@ export default function AdminLogin() {
   const { adminLogin, isAdminAuthenticated } = useAdminAuthStore();
   const [loading, setLoading] = useState(false);
   const { register, handleSubmit, formState: { errors } } = useForm();
+
+  const customerUser = useAuthStore((s) => s.user);
+
+  useEffect(() => {
+    if (customerUser && customerUser.role !== 'admin') {
+      navigate('/', { replace: true });
+    }
+  }, [customerUser, navigate]);
 
   useEffect(() => {
     if (isAdminAuthenticated) {

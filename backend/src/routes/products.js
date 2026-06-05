@@ -2,7 +2,7 @@ import express from 'express';
 import { z } from 'zod';
 import { prisma } from '../lib/prisma.js';
 import { authenticateToken, requireAdmin } from '../middlewares/auth.js';
-import { upload } from '../middlewares/upload.js';
+import { upload, uploadImageToSupabase, deleteImageFromSupabase } from '../middlewares/upload.js';
 import { validate } from '../middlewares/validate.js';
 
 const router = express.Router();
@@ -252,7 +252,10 @@ router.post(
   validate({ body: createProductSchema }),
   async (req, res) => {
     try {
-      const imagePath = req.file ? `/uploads/${req.file.filename}` : '/placeholder.jpg';
+      let imagePath = '/placeholder.jpg';
+      if (req.file) {
+        imagePath = await uploadImageToSupabase(req.file);
+      }
 
       const product = await prisma.product.create({
         data: {
@@ -318,7 +321,10 @@ router.put(
       if (req.body.isNew !== undefined) data.isNew = stringToBoolean(req.body.isNew);
 
       if (req.file) {
-        data.image = `/uploads/${req.file.filename}`;
+        if (existingProduct.image && existingProduct.image !== '/placeholder.jpg') {
+          await deleteImageFromSupabase(existingProduct.image);
+        }
+        data.image = await uploadImageToSupabase(req.file);
         data.images = data.image;
       }
 
@@ -355,6 +361,10 @@ router.delete('/:id', authenticateToken, requireAdmin, validate({ params: produc
 
     if (!product) {
       return res.status(404).json({ message: 'Product not found.' });
+    }
+
+    if (product.image && product.image !== '/placeholder.jpg') {
+      await deleteImageFromSupabase(product.image);
     }
 
     await prisma.product.delete({
