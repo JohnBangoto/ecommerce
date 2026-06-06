@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { useEffect } from 'react';
 import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import CartDrawer from './components/cart/CartDrawer';
 import Footer from './components/layout/Footer';
@@ -54,7 +55,12 @@ function RequireAdmin({ children }) {
   const isAdminAuthenticated = useAdminAuthStore((s) => s.isAdminAuthenticated);
   const adminUser = useAdminAuthStore((s) => s.adminUser);
   const user = useAuthStore((s) => s.user);
+  const user = useAuthStore((s) => s.user);
   const location = useLocation();
+
+  if (user && user.role !== 'admin') {
+    return <Navigate to="/" replace />;
+  }
 
   if (user && user.role !== 'admin') {
     return <Navigate to="/" replace />;
@@ -84,6 +90,23 @@ function FrontOfficeGuard({ children }) {
 }
 
 export default function App() {
+  const user = useAuthStore((s) => s.user);
+  const token = useAuthStore((s) => s.token);
+  const logout = useAuthStore((s) => s.logout);
+
+  useEffect(() => {
+    if (user?.role === 'admin' && token) {
+      // Migrate admin session to admin store
+      useAdminAuthStore.setState({
+        adminUser: user,
+        adminToken: token,
+        isAdminAuthenticated: true,
+      });
+      localStorage.setItem('luxora-admin-token', token);
+      logout();
+    }
+  }, [user, token, logout]);
+
   const user = useAuthStore((s) => s.user);
   const token = useAuthStore((s) => s.token);
   const logout = useAuthStore((s) => s.logout);
