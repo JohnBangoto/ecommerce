@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { Mail, Phone, MapPin, Clock, Send, ChevronDown, CheckCircle } from 'lucide-react';
+import { api } from '../utils/api';
+import { useUIStore } from '../store/uiStore';
 import styles from './Contact.module.css';
 
 const faqs = [
@@ -23,13 +25,20 @@ const subjects = [
 export default function Contact() {
   const [openFaq, setOpenFaq] = useState(null);
   const [submitted, setSubmitted] = useState(false);
+  const addToast = useUIStore((s) => s.addToast);
   const { register, handleSubmit, formState: { errors }, reset } = useForm();
 
   const onSubmit = async (data) => {
-    await new Promise(r => setTimeout(r, 1000));
-    setSubmitted(true);
-    reset();
-    setTimeout(() => setSubmitted(false), 5000);
+    try {
+      await api.post('/contact', data);
+      setSubmitted(true);
+      addToast('Votre message a été envoyé avec succès !');
+      reset();
+      setTimeout(() => setSubmitted(false), 6000);
+    } catch (err) {
+      console.error(err);
+      addToast(err.message || 'Impossible d\'envoyer le message.', 'warning');
+    }
   };
 
   return (

@@ -8,35 +8,59 @@ generator client {
   provider = "prisma-client-js"
 }
 
+enum UserRole {
+  customer
+  admin
+}
+
+enum OrderStatus {
+  confirmed
+  prepared
+  shipped
+  delivered
+  cancelled
+}
+
+enum ProductCondition {
+  new
+  used
+  refurbished
+}
+
 model User {
   id           Int      @id @default(autoincrement())
   email        String   @unique
   passwordHash String
   firstName    String?
   lastName     String?
-  role         String   @default("customer") // "customer" or "admin"
+  role         UserRole @default(customer)
   orders       Order[]
   createdAt    DateTime @default(now())
 }
 
 model Product {
-  id           Int         @id @default(autoincrement())
-  name         String
-  description  String
-  price        Float
-  stock        Int
-  category     String
-  image        String      // URL locale de l'image principale, ex: "/uploads/image.jpg"
-  images       String?     // Liste d'URLs séparées par des virgules ou JSON sous forme de chaîne
-  sizes        String?     // Liste de tailles séparées par des virgules (ex: "S,M,L")
-  colors       String?     // Liste de couleurs séparées par des virgules (ex: "Noir,Rouge")
-  rating       Float       @default(4.5)
-  reviewsCount Int         @default(0)
-  isFeatured   Boolean     @default(false)
-  isNew        Boolean     @default(true)
-  reviews      Review[]
-  orderItems   OrderItem[]
-  createdAt    DateTime    @default(now())
+  id                Int              @id @default(autoincrement())
+  name              String
+  description       String
+  price             Float
+  stock             Int
+  categoryId        Int
+  category          Category         @relation(fields: [categoryId], references: [id])
+  image             String      // URL locale de l'image principale, ex: "/uploads/image.jpg"
+  images            String?     // Liste d'URLs séparées par des virgules ou JSON sous forme de chaîne
+  sizes             String?     // Liste de tailles séparées par des virgules (ex: "S,M,L")
+  colors            String?     // Liste de couleurs séparées par des virgules (ex: "Noir,Rouge")
+  rating            Float            @default(4.5)
+  reviewsCount      Int              @default(0)
+  isFeatured        Boolean          @default(false)
+  isNew             Boolean          @default(true)
+  isActive          Boolean          @default(true)
+  lowStockThreshold Int              @default(5)
+  condition         ProductCondition @default(new)
+  reviews           Review[]
+  orderItems        OrderItem[]
+  stockMovements    StockMovement[]
+  createdAt         DateTime         @default(now())
 }
 
 model Review {
@@ -51,17 +75,17 @@ model Review {
 }
 
 model Order {
-  id              String      @id // "CMD-1716382041" par exemple
-  userId          Int?
-  user            User?       @relation(fields: [userId], references: [id], onDelete: SetNull)
-  total           Float
-  status          String      @default("confirmed") // "confirmed" | "prepared" | "shipped" | "delivered" | "cancelled"
-  paymentStatus   String      @default("paid")      // "paid" | "pending"
-  shippingAddress String      // JSON stringified contenant firstName, lastName, address, city, zip, phone, email, country
-  trackingNumber  String
+  id                 String           @id // "CMD-1716382041" par exemple
+  userId             Int?
+  user               User?            @relation(fields: [userId], references: [id], onDelete: SetNull)
+  total              Float
+  status             OrderStatus      @default(confirmed)
+  paymentStatus      String           @default("paid")      // "paid" | "pending"
+  shippingAddress    ShippingAddress?
+  trackingNumber     String
   trackingAccessHash String?
-  items           OrderItem[]
-  createdAt       DateTime    @default(now())
+  items              OrderItem[]
+  createdAt          DateTime         @default(now())
 }
 
 model OrderItem {
@@ -75,4 +99,47 @@ model OrderItem {
   price     Float
   size      String?
   color     String?
+}
+
+model Category {
+  id        Int       @id @default(autoincrement())
+  name      String    @unique
+  slug      String    @unique
+  products  Product[]
+  createdAt DateTime  @default(now())
+}
+
+model ShippingAddress {
+  id        Int     @id @default(autoincrement())
+  orderId   String  @unique
+  order     Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  firstName String
+  lastName  String
+  address   String
+  city      String
+  zip       String?
+  country   String
+  phone     String?
+  email     String
+}
+
+model StockMovement {
+  id        Int      @id @default(autoincrement())
+  productId Int
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  quantity  Int
+  type      String   // e.g. "supply", "sale", "adjustment"
+  note      String?
+  createdAt DateTime @default(now())
+}
+
+model ContactMessage {
+  id        Int      @id @default(autoincrement())
+  firstName String
+  lastName  String
+  email     String
+  subject   String
+  orderId   String?
+  message   String
+  createdAt DateTime @default(now())
 }

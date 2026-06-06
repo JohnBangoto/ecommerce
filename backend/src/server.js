@@ -12,6 +12,7 @@ import adminRoutes from './routes/admin.js';
 import authRoutes from './routes/auth.js';
 import orderRoutes from './routes/orders.js';
 import productRoutes from './routes/products.js';
+import contactRoutes from './routes/contact.js';
 import { buildSwaggerSpec } from './swagger.js';
 
 const app = express();
@@ -110,6 +111,7 @@ app.use('/api/auth', authLimiter, authRoutes);
 app.use('/api/products', productRoutes);
 app.use('/api/orders', orderRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/contact', contactRoutes);
 
 app.use((err, req, res, next) => {
   if (err instanceof multer.MulterError) {

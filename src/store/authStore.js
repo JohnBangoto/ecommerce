@@ -72,6 +72,48 @@ export const useAuthStore = create(
         }
       },
 
+      googleLogin: async (accessToken) => {
+        set({ loading: true, error: null });
+        try {
+          const response = await api.post('/auth/google', { token: accessToken });
+          localStorage.setItem('luxora-token', response.token);
+          set({
+            user: response.user,
+            token: response.token,
+            isAuthenticated: true,
+            loading: false,
+          });
+
+          // Conserver le panier actuel mais vider l'historique de commandes de l'utilisateur précédent
+          const { useOrderStore } = await import('./orderStore');
+          useOrderStore.getState().clearOrders();
+
+          return response.user;
+        } catch (error) {
+          set({ loading: false, error: error.message });
+          throw error;
+        }
+      },
+
+      completeProfile: async ({ firstName, lastName }) => {
+        set({ loading: true, error: null });
+        try {
+          const response = await api.put('/auth/complete-profile', { firstName, lastName });
+          set((state) => ({
+            user: {
+              ...state.user,
+              firstName: response.user.firstName,
+              lastName: response.user.lastName,
+            },
+            loading: false,
+          }));
+          return response.user;
+        } catch (error) {
+          set({ loading: false, error: error.message });
+          throw error;
+        }
+      },
+
       logout: async () => {
         localStorage.removeItem('luxora-token');
         set({ user: null, token: null, isAuthenticated: false, error: null });

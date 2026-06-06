@@ -4,6 +4,7 @@ import jwt from 'jsonwebtoken';
 import { z } from 'zod';
 import { env } from '../config/env.js';
 import { prisma } from '../lib/prisma.js';
+import { supabase } from '../lib/supabase.js';
 import { authenticateToken } from '../middlewares/auth.js';
 import { validate } from '../middlewares/validate.js';
 
@@ -154,6 +155,102 @@ router.get('/me', authenticateToken, async (req, res) => {
   } catch (error) {
     console.error('Profile retrieval error:', error);
     return res.status(500).json({ message: 'Unable to load the user profile right now.' });
+  }
+});
+
+const googleAuthSchema = z.object({
+  token: z.string().min(1, 'Token is required'),
+});
+
+const completeProfileSchema = z.object({
+  firstName: z.string().trim().min(1, 'Prénom requis').max(100),
+  lastName: z.string().trim().min(1, 'Nom requis').max(100),
+});
+
+/**
+ * @swagger
+ * /api/auth/google:
+ *   post:
+ *     summary: Log in / register with Google OAuth via Supabase token
+ *     tags: [Authentification]
+ */
+router.post('/google', validate({ body: googleAuthSchema }), async (req, res) => {
+  try {
+    const { token } = req.body;
+
+    // Verify token with Supabase
+    const { data: { user: supabaseUser }, error } = await supabase.auth.getUser(token);
+
+    if (error || !supabaseUser) {
+      console.error('Supabase token verification error:', error);
+      return res.status(401).json({ message: 'Invalid or expired Google session.' });
+    }
+
+    const email = supabaseUser.email.toLowerCase();
+
+    // Check if user exists in the local database
+    let user = await prisma.user.findUnique({
+      where: { email },
+    });
+
+    if (!user) {
+      // Create a new user with Google OAuth profile info if available
+      const firstName = supabaseUser.user_metadata?.given_name || supabaseUser.user_metadata?.first_name || null;
+      const lastName = supabaseUser.user_metadata?.family_name || supabaseUser.user_metadata?.last_name || null;
+
+      user = await prisma.user.create({
+        data: {
+          email,
+          passwordHash: 'GOOGLE_OAUTH_USER', // placeholder value
+          firstName,
+          lastName,
+          role: 'customer',
+        },
+      });
+      console.log(`Created new customer account via Google: ${email}`);
+    }
+
+    const localToken = signAuthToken(user);
+
+    return res.json({
+      message: 'Google login successful.',
+      token: localToken,
+      user: serializeUser(user),
+    });
+  } catch (error) {
+    console.error('Google auth error:', error);
+    return res.status(500).json({ message: 'Unable to authenticate with Google right now.' });
+  }
+});
+
+/**
+ * @swagger
+ * /api/auth/complete-profile:
+ *   put:
+ *     summary: Complete missing user profile information
+ *     tags: [Authentification]
+ *     security:
+ *       - bearerAuth: []
+ */
+router.put('/complete-profile', authenticateToken, validate({ body: completeProfileSchema }), async (req, res) => {
+  try {
+    const { firstName, lastName } = req.body;
+
+    const updatedUser = await prisma.user.update({
+      where: { id: req.user.id },
+      data: {
+        firstName,
+        lastName,
+      },
+    });
+
+    return res.json({
+      message: 'Profile completed successfully.',
+      user: serializeUser(updatedUser),
+    });
+  } catch (error) {
+    console.error('Profile completion error:', error);
+    return res.status(500).json({ message: 'Unable to update profile right now.' });
   }
 });
 

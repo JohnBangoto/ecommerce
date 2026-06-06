@@ -26,6 +26,7 @@ router.get('/orders', authenticateToken, requireAdmin, async (req, res) => {
             email: true,
           },
         },
+        shippingAddress: true,
         items: {
           include: {
             product: {
@@ -60,6 +61,7 @@ router.get('/stats', authenticateToken, requireAdmin, async (req, res) => {
     const [allOrders, allProducts] = await Promise.all([
       prisma.order.findMany({
         include: {
+          shippingAddress: true,
           items: {
             include: {
               product: {
@@ -80,7 +82,7 @@ router.get('/stats', authenticateToken, requireAdmin, async (req, res) => {
     const totalOrders = allOrders.length;
     const outOfStock = allProducts.filter((product) => product.stock === 0).length;
     const lowStock = allProducts.filter(
-      (product) => product.stock > 0 && product.stock <= env.LOW_STOCK_THRESHOLD,
+      (product) => product.stock > 0 && product.stock <= product.lowStockThreshold,
     ).length;
     const avgBasket = activeOrders.length > 0 ? totalRevenue / activeOrders.length : 0;
 
@@ -97,7 +99,7 @@ router.get('/stats', authenticateToken, requireAdmin, async (req, res) => {
       monthly[monthKey] = (monthly[monthKey] || 0) + order.total;
 
       for (const item of order.items) {
-        const category = item.product?.category || 'other';
+        const category = item.product?.category?.slug || 'other';
 
         if (!salesByCategory[category]) {
           salesByCategory[category] = { revenue: 0, qty: 0 };

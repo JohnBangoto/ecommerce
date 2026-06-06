@@ -91,13 +91,34 @@ async function main() {
     console.log(`Created customer account: ${customer.email}`);
   }
 
+  // ─── Création des catégories ────────────────────────────────────────────────
+  const categoriesData = [
+    { name: 'Mode', slug: 'mode' },
+    { name: 'Électronique', slug: 'electronique' },
+    { name: 'Maison', slug: 'maison' },
+    { name: 'Beauté', slug: 'beaute' },
+    { name: 'Sport', slug: 'sport' },
+    { name: 'Alimentation', slug: 'alimentation' },
+  ];
+
+  console.log('Seeding categories...');
+  const categoryMap = {};
+  for (const cat of categoriesData) {
+    const created = await prisma.category.upsert({
+      where: { name: cat.name },
+      update: {},
+      create: cat,
+    });
+    categoryMap[cat.slug] = created.id;
+  }
+
   // ─── Création des produits ───────────────────────────────────────────────────
   // On n'insère des produits que si la table est vide
   if (productCount === 0) {
     const products = [
       buildProduct({
         name: 'Veste en Cuir Artisanale',
-        category: 'mode',
+        categoryId: categoryMap['mode'],
         price: 190000,
         stock: 15,
         isFeatured: true,
@@ -110,7 +131,7 @@ async function main() {
       }),
       buildProduct({
         name: 'Montre Connectee Elite',
-        category: 'electronique',
+        categoryId: categoryMap['electronique'],
         price: 261000,
         stock: 10,
         isFeatured: true,
@@ -123,7 +144,7 @@ async function main() {
       }),
       buildProduct({
         name: 'Bougie Parfumee Artisanale',
-        category: 'maison',
+        categoryId: categoryMap['maison'],
         price: 25000,
         stock: 50,
         isFeatured: true,
@@ -135,7 +156,7 @@ async function main() {
       }),
       buildProduct({
         name: 'Serum Visage Anti-age',
-        category: 'beaute',
+        categoryId: categoryMap['beaute'],
         price: 51000,
         stock: 35,
         isFeatured: true,
@@ -146,7 +167,7 @@ async function main() {
       }),
       buildProduct({
         name: 'Tapis de Yoga Premium',
-        category: 'sport',
+        categoryId: categoryMap['sport'],
         price: 58500,
         stock: 28,
         image: 'https://images.unsplash.com/photo-1601925228998-a5ae3f12b6a2?w=600&q=80',
@@ -157,7 +178,7 @@ async function main() {
       }),
       buildProduct({
         name: 'Coffret Thes Grands Crus',
-        category: 'alimentation',
+        categoryId: categoryMap['alimentation'],
         price: 36000,
         stock: 45,
         isFeatured: true,
@@ -170,7 +191,18 @@ async function main() {
 
     const createdProducts = [];
     for (const product of products) {
-      createdProducts.push(await prisma.product.create({ data: product }));
+      const created = await prisma.product.create({ data: product });
+      createdProducts.push(created);
+      
+      // Mouvement de stock initial
+      await prisma.stockMovement.create({
+        data: {
+          productId: created.id,
+          quantity: created.stock,
+          type: 'supply',
+          note: 'Initial stock seeding',
+        },
+      });
     }
 
     const reviewData = [
@@ -203,7 +235,7 @@ async function main() {
       });
     }
 
-    console.log(`Seeded ${createdProducts.length} products.`);
+    console.log(`Seeded ${createdProducts.length} products with stock movements.`);
     console.log(`Seeded ${reviewData.length} reviews.`);
   }
 

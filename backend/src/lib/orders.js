@@ -63,7 +63,7 @@ export const formatOrderResponse = (order) => {
       name: customerName,
       postalCode: shippingAddress.postalCode || shippingAddress.zip || '',
     },
-    paymentMethod: shippingAddress.paymentMethod || '—',
+    paymentMethod: shippingAddress.paymentMethod || 'Carte bancaire',
     customer: customerName,
     email: shippingAddress.email || '',
     items,

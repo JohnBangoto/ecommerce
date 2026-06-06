@@ -5,6 +5,8 @@ import Footer from './components/layout/Footer';
 import Header from './components/layout/Header';
 import ToastContainer from './components/ui/Toast';
 import Login from './pages/Login';
+import LoginCallback from './pages/LoginCallback';
+import CompleteProfile from './pages/CompleteProfile';
 import { useAuthStore } from './store/authStore';
 
 // Front office pages
@@ -34,10 +36,15 @@ import styles from './App.module.css';
 
 function RequireAuth({ children }) {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const user = useAuthStore((s) => s.user);
   const location = useLocation();
 
   if (!isAuthenticated) {
     return <Navigate to="/login" state={{ from: location }} replace />;
+  }
+
+  if (user && (!user.firstName || !user.lastName)) {
+    return <Navigate to="/complete-profile" replace />;
   }
 
   return children;
@@ -63,9 +70,14 @@ function RequireAdmin({ children }) {
 function FrontOfficeGuard({ children }) {
   const isAdminAuthenticated = useAdminAuthStore((s) => s.isAdminAuthenticated);
   const user = useAuthStore((s) => s.user);
+  const location = useLocation();
 
   if (isAdminAuthenticated || user?.role === 'admin') {
     return <Navigate to="/admin" replace />;
+  }
+
+  if (user && (!user.firstName || !user.lastName) && location.pathname !== '/complete-profile' && location.pathname !== '/login/callback') {
+    return <Navigate to="/complete-profile" replace />;
   }
 
   return children;
@@ -118,6 +130,8 @@ export default function App() {
                   <Route path="/paiement" element={<RequireAuth><Paiement /></RequireAuth>} />
                   <Route path="/mes-commandes" element={<RequireAuth><MesCommandes /></RequireAuth>} />
                   <Route path="/login" element={<Login />} />
+                  <Route path="/login/callback" element={<LoginCallback />} />
+                  <Route path="/complete-profile" element={<CompleteProfile />} />
                   <Route path="/confirmation/:orderId" element={<Confirmation />} />
                   <Route path="/confirmation" element={<Confirmation />} />
                   <Route path="/suivi/:orderId" element={<Suivi />} />

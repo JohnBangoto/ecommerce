@@ -71,6 +71,7 @@ const loadOrderById = (id) =>
           email: true,
         },
       },
+      shippingAddress: true,
       items: {
         include: {
           product: {
@@ -127,10 +128,21 @@ router.post('/checkout-simulated', validate({ body: checkoutSchema }), async (re
         const lineTotal = product.price * item.quantity;
         computedTotal += lineTotal;
 
+        // Update product stock
         await tx.product.update({
           where: { id: item.productId },
           data: {
             stock: product.stock - item.quantity,
+          },
+        });
+
+        // Create stock movement
+        await tx.stockMovement.create({
+          data: {
+            productId: item.productId,
+            quantity: -item.quantity,
+            type: 'sale',
+            note: `Order ${orderId}`,
           },
         });
 
@@ -152,10 +164,18 @@ router.post('/checkout-simulated', validate({ body: checkoutSchema }), async (re
           total: Number(computedTotal.toFixed(2)),
           status: 'confirmed',
           paymentStatus: 'paid',
-          shippingAddress: JSON.stringify({
-            ...shippingAddress,
-            paymentMethod: req.body.paymentMethod || 'virement',
-          }),
+          shippingAddress: {
+            create: {
+              firstName: shippingAddress.firstName,
+              lastName: shippingAddress.lastName,
+              address: shippingAddress.address,
+              city: shippingAddress.city,
+              zip: shippingAddress.zip || null,
+              country: shippingAddress.country,
+              phone: shippingAddress.phone || null,
+              email: shippingAddress.email,
+            },
+          },
           trackingNumber,
           trackingAccessHash,
         },
@@ -168,6 +188,7 @@ router.post('/checkout-simulated', validate({ body: checkoutSchema }), async (re
       return tx.order.findUnique({
         where: { id: orderId },
         include: {
+          shippingAddress: true,
           items: {
             include: {
               product: {
@@ -212,6 +233,7 @@ router.get('/my-orders', authenticateToken, async (req, res) => {
       where: { userId: req.user.id },
       orderBy: { createdAt: 'desc' },
       include: {
+        shippingAddress: true,
         items: {
           include: {
             product: {
@@ -318,6 +340,7 @@ router.put(
         where: { id: req.params.id },
         data: { status: req.body.status },
         include: {
+          shippingAddress: true,
           items: {
             include: {
               product: {

@@ -42,9 +42,12 @@ const createProductSchema = z.object({
   description: z.string().trim().max(10000).optional().default(''),
   price: z.coerce.number().nonnegative(),
   stock: z.coerce.number().int().min(0).optional().default(0),
-  category: z.string().trim().min(1).max(60),
+  categoryId: z.coerce.number().int().positive(),
   sizes: z.string().trim().max(500).optional().default(''),
   colors: z.string().trim().max(500).optional().default(''),
+  condition: z.enum(['new', 'used', 'refurbished']).optional().default('new'),
+  isActive: z.union([z.boolean(), z.enum(['true', 'false'])]).optional().default(true),
+  lowStockThreshold: z.coerce.number().int().min(0).optional().default(5),
 });
 
 const updateProductSchema = z
@@ -53,11 +56,14 @@ const updateProductSchema = z
     description: z.string().trim().max(10000).optional(),
     price: z.coerce.number().nonnegative().optional(),
     stock: z.coerce.number().int().min(0).optional(),
-    category: z.string().trim().min(1).max(60).optional(),
+    categoryId: z.coerce.number().int().positive().optional(),
     sizes: z.string().trim().max(500).optional(),
     colors: z.string().trim().max(500).optional(),
     isFeatured: z.union([z.boolean(), z.enum(['true', 'false'])]).optional(),
     isNew: z.union([z.boolean(), z.enum(['true', 'false'])]).optional(),
+    condition: z.enum(['new', 'used', 'refurbished']).optional(),
+    isActive: z.union([z.boolean(), z.enum(['true', 'false'])]).optional(),
+    lowStockThreshold: z.coerce.number().int().min(0).optional(),
   })
   .refine((payload) => Object.keys(payload).length > 0, {
     message: 'At least one product field must be provided.',
@@ -70,6 +76,7 @@ const formatProductResponse = (product) => {
 
   return {
     ...product,
+    category: product.category?.slug || product.category || '',
     sizes: product.sizes ? product.sizes.split(',').map((value) => value.trim()).filter(Boolean) : [],
     colors: product.colors ? product.colors.split(',').map((value) => value.trim()).filter(Boolean) : [],
     images: product.images
@@ -83,6 +90,7 @@ const includeProductRelations = {
   reviews: {
     orderBy: { createdAt: 'desc' },
   },
+  category: true,
 };
 
 /**
@@ -98,7 +106,7 @@ router.get('/', validate({ query: productListQuerySchema }), async (req, res) =>
     const where = {};
 
     if (category && category !== 'all') {
-      where.category = category;
+      where.category = { slug: category };
     }
 
     if (isFeatured === 'true') {
@@ -113,7 +121,8 @@ router.get('/', validate({ query: productListQuerySchema }), async (req, res) =>
       where.OR = [
         { name: { contains: search, mode: 'insensitive' } },
         { description: { contains: search, mode: 'insensitive' } },
-        { category: { contains: search, mode: 'insensitive' } },
+        { category: { name: { contains: search, mode: 'insensitive' } } },
+        { category: { slug: { contains: search, mode: 'insensitive' } } },
       ];
     }
 
@@ -261,17 +270,32 @@ router.post(
         data: {
           name: req.body.name,
           description: req.body.description,
-          price: req.body.price,
-          stock: req.body.stock,
-          category: req.body.category,
+          price: Number(req.body.price),
+          stock: Number(req.body.stock || 0),
+          categoryId: Number(req.body.categoryId),
           image: imagePath,
           images: imagePath,
           sizes: req.body.sizes,
           colors: req.body.colors,
           isNew: true,
           isFeatured: false,
+          condition: req.body.condition || 'new',
+          isActive: stringToBoolean(req.body.isActive) !== false,
+          lowStockThreshold: Number(req.body.lowStockThreshold || 5),
         },
+        include: includeProductRelations,
       });
+
+      if (product.stock > 0) {
+        await prisma.stockMovement.create({
+          data: {
+            productId: product.id,
+            quantity: product.stock,
+            type: 'supply',
+            note: 'Initial stock on creation',
+          },
+        });
+      }
 
       return res.status(201).json({
         message: 'Product created successfully.',
@@ -312,13 +336,22 @@ router.put(
       const data = {};
       if (req.body.name !== undefined) data.name = req.body.name;
       if (req.body.description !== undefined) data.description = req.body.description;
-      if (req.body.price !== undefined) data.price = req.body.price;
-      if (req.body.stock !== undefined) data.stock = req.body.stock;
-      if (req.body.category !== undefined) data.category = req.body.category;
+      if (req.body.price !== undefined) data.price = Number(req.body.price);
+      if (req.body.categoryId !== undefined) data.categoryId = Number(req.body.categoryId);
       if (req.body.sizes !== undefined) data.sizes = req.body.sizes;
       if (req.body.colors !== undefined) data.colors = req.body.colors;
       if (req.body.isFeatured !== undefined) data.isFeatured = stringToBoolean(req.body.isFeatured);
       if (req.body.isNew !== undefined) data.isNew = stringToBoolean(req.body.isNew);
+      if (req.body.condition !== undefined) data.condition = req.body.condition;
+      if (req.body.isActive !== undefined) data.isActive = stringToBoolean(req.body.isActive);
+      if (req.body.lowStockThreshold !== undefined) data.lowStockThreshold = Number(req.body.lowStockThreshold);
+
+      let stockDiff = 0;
+      if (req.body.stock !== undefined) {
+        const newStock = Number(req.body.stock);
+        stockDiff = newStock - existingProduct.stock;
+        data.stock = newStock;
+      }
 
       if (req.file) {
         if (existingProduct.image && existingProduct.image !== '/placeholder.jpg') {
@@ -331,7 +364,19 @@ router.put(
       const updatedProduct = await prisma.product.update({
         where: { id: req.params.id },
         data,
+        include: includeProductRelations,
       });
+
+      if (stockDiff !== 0) {
+        await prisma.stockMovement.create({
+          data: {
+            productId: updatedProduct.id,
+            quantity: stockDiff,
+            type: stockDiff > 0 ? 'supply' : 'adjustment',
+            note: `Stock updated from dashboard (was ${existingProduct.stock}, now ${updatedProduct.stock})`,
+          },
+        });
+      }
 
       return res.json({
         message: 'Product updated successfully.',
