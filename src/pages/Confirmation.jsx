@@ -1,7 +1,6 @@
 import { ArrowRight, CheckCircle, MapPin, Package, ShoppingBag } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { useAdminStore } from '../store/adminStore';
 import { useOrderStore } from '../store/orderStore';
 import formatPrice from '../utils/formatPrice';
 import styles from './Confirmation.module.css';
@@ -10,19 +9,12 @@ export default function Confirmation() {
   const { orderId } = useParams();
   const [order, setOrder] = useState(null);
 
-  const adminOrders = useAdminStore((state) => state.orders);
   const getOrderById = useOrderStore((state) => state.getOrderById);
   const getTrackingToken = useOrderStore((state) => state.getTrackingToken);
   const currentOrder = useOrderStore((state) => state.currentOrder);
 
   useEffect(() => {
     async function loadOrder() {
-      const fromAdmin = adminOrders.find((entry) => entry.id === orderId);
-      if (fromAdmin) {
-        setOrder(fromAdmin);
-        return;
-      }
-
       const trackingToken = getTrackingToken(orderId);
       const fromStore = await getOrderById(orderId, { trackingToken });
       if (fromStore) {
@@ -36,7 +28,7 @@ export default function Confirmation() {
     }
 
     loadOrder();
-  }, [adminOrders, currentOrder, getOrderById, getTrackingToken, orderId]);
+  }, [currentOrder, getOrderById, getTrackingToken, orderId]);
 
   const trackingToken = order?.trackingToken || getTrackingToken(orderId);
   const trackingLink = trackingToken

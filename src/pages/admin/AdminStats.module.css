@@ -55,3 +55,145 @@
 .top10Stats { display:flex; flex-direction:column; align-items:flex-end; gap:0.1rem; }
 .top10Rev { font-size:0.78rem; font-weight:600; color:#C9A96E; }
 .top10Qty { font-size:0.68rem; color:#8B8680; }
+
+/* Filters & Controls */
+.filtersContainer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1.5rem;
+  background: #1A1D27;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 14px;
+  padding: 1rem 1.25rem;
+  margin-bottom: 1.5rem;
+  flex-wrap: wrap;
+}
+.presetButtons {
+  display: flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+.btnPreset {
+  padding: 0.45rem 0.85rem;
+  border-radius: 8px;
+  font-size: 0.78rem;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.04);
+  color: #8B8680;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.btnPreset:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #F0EDE8;
+}
+.activePreset {
+  background: rgba(201, 169, 110, 0.15);
+  border-color: rgba(201, 169, 110, 0.4);
+  color: #C9A96E;
+  font-weight: 600;
+}
+
+.filterInputs {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+.dateInputs {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+.inputGroup {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.inputGroup label {
+  font-size: 0.75rem;
+  color: #8B8680;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.dateInput {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  color: #F0EDE8;
+  font-size: 0.8rem;
+  padding: 0.45rem 0.75rem;
+  outline: none;
+  cursor: pointer;
+  transition: border-color 0.2s;
+}
+.dateInput:focus {
+  border-color: #C9A96E;
+}
+.granularitySelect {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  color: #F0EDE8;
+  font-size: 0.8rem;
+  padding: 0.45rem 0.75rem;
+  outline: none;
+  cursor: pointer;
+  transition: border-color 0.2s;
+}
+.granularitySelect:focus {
+  border-color: #C9A96E;
+}
+
+/* Loading & Error Wrappers */
+.loadingWrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 400px;
+  color: #8B8680;
+  gap: 1rem;
+}
+.spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid rgba(201, 169, 110, 0.1);
+  border-radius: 50%;
+  border-top-color: #C9A96E;
+  animation: spin 1s ease-in-out infinite;
+}
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.errorWrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 400px;
+  color: #F0EDE8;
+  gap: 0.5rem;
+  text-align: center;
+}
+.errorIcon {
+  font-size: 3rem;
+  margin-bottom: 0.5rem;
+}
+.btnRetry {
+  margin-top: 1rem;
+  padding: 0.5rem 1.5rem;
+  background: #C9A96E;
+  color: #13161F;
+  border: none;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+.btnRetry:hover {
+  opacity: 0.9;
+}
+

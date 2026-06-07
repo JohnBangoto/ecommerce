@@ -1,33 +1,89 @@
-import { useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { orderStatusLabels } from '../../data/orders';
-import { useAdminStore } from '../../store/adminStore';
+import { api } from '../../utils/api';
 import formatPrice from '../../utils/formatPrice';
 import styles from './AdminCommandes.module.css';
 
-const STATUS_OPTIONS = ['confirmed','prepared','shipped','delivered','cancelled'];
+const STATUS_OPTIONS = ['confirmed', 'prepared', 'shipped', 'delivered', 'cancelled'];
 
 export default function AdminCommandes() {
-  const { orders, updateOrderStatus, loadOrders } = useAdminStore();
+  const [orders, setOrders] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [selectedOrder, setSelectedOrder] = useState(null);
 
+  const loadOrders = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const fetchedOrders = await api.get('/admin/orders');
+      setOrders(fetchedOrders || []);
+    } catch (err) {
+      console.error('Unable to load admin orders:', err);
+      setError(err.message || 'Impossible de charger les commandes.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
     loadOrders();
-  }, [loadOrders]);
+  }, []);
+
+  const updateOrderStatus = async (orderId, newStatus) => {
+    try {
+      const response = await api.put(`/orders/${orderId}/status`, { status: newStatus });
+      const updatedOrder = response.order;
+      
+      // Update orders list
+      setOrders(prevOrders => prevOrders.map(o => o.id === orderId ? updatedOrder : o));
+      
+      // Update modal order if it's the one modified
+      if (selectedOrder && selectedOrder.id === orderId) {
+        setSelectedOrder(updatedOrder);
+      }
+    } catch (err) {
+      console.error('Unable to update order status:', err);
+      alert(`Erreur de mise à jour du statut: ${err.message || 'Erreur inconnue'}`);
+    }
+  };
 
   const filtered = orders.filter(o => {
     const matchSearch =
       o.id.toLowerCase().includes(search.toLowerCase()) ||
       o.customer.toLowerCase().includes(search.toLowerCase()) ||
-      (o.email||'').toLowerCase().includes(search.toLowerCase());
+      (o.email || '').toLowerCase().includes(search.toLowerCase());
     const matchStatus = statusFilter === 'all' || o.status === statusFilter;
     return matchSearch && matchStatus;
-  }).sort((a,b) => new Date(b.date) - new Date(a.date));
+  }).sort((a, b) => new Date(b.date) - new Date(a.date));
 
-  const counts = STATUS_OPTIONS.reduce((acc,s) => {
-    acc[s] = orders.filter(o=>o.status===s).length; return acc;
+  const counts = STATUS_OPTIONS.reduce((acc, s) => {
+    acc[s] = orders.filter(o => o.status === s).length;
+    return acc;
   }, {});
+
+  if (loading) {
+    return (
+      <div className={styles.loadingWrap}>
+        <div className={styles.spinner}></div>
+        <p>Chargement des commandes...</p>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className={styles.errorWrap}>
+        <div className={styles.errorIcon}>⚠️</div>
+        <h3>Erreur de chargement</h3>
+        <p>{error}</p>
+        <button onClick={loadOrders} className={styles.btnRetry}>Réessayer</button>
+      </div>
+    );
+  }
 
   return (
     <div className={styles.page}>
@@ -40,14 +96,14 @@ export default function AdminCommandes() {
 
       {/* Status tabs */}
       <div className={styles.tabs}>
-        <button className={`${styles.tab} ${statusFilter==='all' ? styles.tabActive : ''}`} onClick={()=>setStatusFilter('all')}>
+        <button className={`${styles.tab} ${statusFilter === 'all' ? styles.tabActive : ''}`} onClick={() => setStatusFilter('all')}>
           Toutes <span className={styles.tabCount}>{orders.length}</span>
         </button>
         {STATUS_OPTIONS.map(s => {
           const sl = orderStatusLabels[s];
           return (
-            <button key={s} className={`${styles.tab} ${statusFilter===s ? styles.tabActive : ''}`} onClick={()=>setStatusFilter(s)}>
-              {sl?.label} <span className={styles.tabCount}>{counts[s]||0}</span>
+            <button key={s} className={`${styles.tab} ${statusFilter === s ? styles.tabActive : ''}`} onClick={() => setStatusFilter(s)}>
+              {sl?.label} <span className={styles.tabCount}>{counts[s] || 0}</span>
             </button>
           );
         })}
@@ -56,7 +112,7 @@ export default function AdminCommandes() {
       {/* Recherche */}
       <div className={styles.searchWrap}>
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-        <input className={styles.search} placeholder="Rechercher par ID, client, email…" value={search} onChange={e=>setSearch(e.target.value)}/>
+        <input className={styles.search} placeholder="Rechercher par ID, client, email…" value={search} onChange={e => setSearch(e.target.value)} />
       </div>
 
       {/* Tableau */}
@@ -80,15 +136,15 @@ export default function AdminCommandes() {
                     </div>
                   </td>
                   <td className={styles.muted}>{new Date(o.date).toLocaleDateString('fr-FR')}</td>
-                  <td className={styles.muted}>{o.items.reduce((s,i)=>s+i.quantity,0)} article{o.items.reduce((s,i)=>s+i.quantity,0)>1?'s':''}</td>
+                  <td className={styles.muted}>{o.items.reduce((s, i) => s + i.quantity, 0)} article{o.items.reduce((s, i) => s + i.quantity, 0) > 1 ? 's' : ''}</td>
                   <td><span className={styles.amount}>{formatPrice(o.total)}</span></td>
-                  <td className={styles.muted}>{o.paymentMethod||'—'}</td>
+                  <td className={styles.muted}>{o.paymentMethod || '—'}</td>
                   <td>
                     <select
                       className={styles.statusSelect}
                       value={o.status}
-                      onChange={e=>updateOrderStatus(o.id, e.target.value)}
-                      style={{ color: sl?.color, borderColor: sl?.color+'44' }}
+                      onChange={e => updateOrderStatus(o.id, e.target.value)}
+                      style={{ color: sl?.color, borderColor: sl?.color + '44' }}
                     >
                       {STATUS_OPTIONS.map(s => (
                         <option key={s} value={s}>{orderStatusLabels[s]?.label || s}</option>
@@ -96,7 +152,7 @@ export default function AdminCommandes() {
                     </select>
                   </td>
                   <td>
-                    <button className={styles.btnDetail} onClick={()=>setSelectedOrder(o)}>
+                    <button className={styles.btnDetail} onClick={() => setSelectedOrder(o)}>
                       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
                       Détail
                     </button>
@@ -111,33 +167,33 @@ export default function AdminCommandes() {
 
       {/* Modal Détail */}
       {selectedOrder && (
-        <div className={styles.overlay} onClick={e=>e.target===e.currentTarget&&setSelectedOrder(null)}>
+        <div className={styles.overlay} onClick={e => e.target === e.currentTarget && setSelectedOrder(null)}>
           <div className={styles.modal}>
             <div className={styles.modalHeader}>
               <div>
                 <h2 className={styles.modalTitle}>{selectedOrder.id}</h2>
-                <p className={styles.modalSub}>{selectedOrder.customer} · {new Date(selectedOrder.date).toLocaleDateString('fr-FR',{day:'numeric',month:'long',year:'numeric'})}</p>
+                <p className={styles.modalSub}>{selectedOrder.customer} · {new Date(selectedOrder.date).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
               </div>
-              <button className={styles.closeBtn} onClick={()=>setSelectedOrder(null)}>✕</button>
+              <button className={styles.closeBtn} onClick={() => setSelectedOrder(null)}>✕</button>
             </div>
             <div className={styles.modalBody}>
               {/* Articles */}
               <h3 className={styles.sectionTitle}>Articles commandés</h3>
               <div className={styles.orderItems}>
-                {selectedOrder.items.map((item,i) => (
+                {selectedOrder.items.map((item, i) => (
                   <div key={i} className={styles.orderItem}>
-                    <img src={item.image} alt={item.name} className={styles.itemImg}/>
+                    <img src={item.image} alt={item.name} className={styles.itemImg} />
                     <div className={styles.itemInfo}>
                       <p className={styles.itemName}>{item.name}</p>
                       <p className={styles.itemQty}>Qté : {item.quantity}</p>
                     </div>
-                    <span className={styles.itemPrice}>{formatPrice(item.price*item.quantity)}</span>
+                    <span className={styles.itemPrice}>{formatPrice(item.price * item.quantity)}</span>
                   </div>
                 ))}
               </div>
               <div className={styles.orderTotals}>
                 <div className={styles.totalRow}><span>Sous-total</span><span>{formatPrice(selectedOrder.subtotal)}</span></div>
-                <div className={styles.totalRow}><span>Livraison</span><span>{selectedOrder.shipping===0?'Gratuite':formatPrice(selectedOrder.shipping)}</span></div>
+                <div className={styles.totalRow}><span>Livraison</span><span>{selectedOrder.shipping === 0 ? 'Gratuite' : formatPrice(selectedOrder.shipping)}</span></div>
                 <div className={`${styles.totalRow} ${styles.totalFinal}`}><span>Total</span><span>{formatPrice(selectedOrder.total)}</span></div>
               </div>
 
@@ -153,13 +209,13 @@ export default function AdminCommandes() {
               {/* Timeline */}
               <h3 className={styles.sectionTitle}>Suivi de commande</h3>
               <div className={styles.timeline}>
-                {selectedOrder.timeline.map((step,i) => (
+                {selectedOrder.timeline.map((step, i) => (
                   <div key={i} className={`${styles.timelineStep} ${step.done ? styles.stepDone : ''}`}>
-                    <div className={styles.stepDot}/>
-                    {i < selectedOrder.timeline.length-1 && <div className={styles.stepLine}/>}
+                    <div className={styles.stepDot} />
+                    {i < selectedOrder.timeline.length - 1 && <div className={styles.stepLine} />}
                     <div className={styles.stepContent}>
                       <p className={styles.stepLabel}>{step.label}</p>
-                      {step.date && <p className={styles.stepDate}>{new Date(step.date).toLocaleString('fr-FR',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})}</p>}
+                      {step.date && <p className={styles.stepDate}>{new Date(step.date).toLocaleString('fr-FR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</p>}
                     </div>
                   </div>
                 ))}
@@ -173,9 +229,9 @@ export default function AdminCommandes() {
                   return (
                     <button
                       key={s}
-                      className={`${styles.statusBtn} ${selectedOrder.status===s ? styles.statusBtnActive : ''}`}
-                      style={selectedOrder.status===s ? { background: sl?.bg, color: sl?.color, borderColor: sl?.color } : {}}
-                      onClick={()=>{ updateOrderStatus(selectedOrder.id,s); setSelectedOrder(o=>({...o,status:s})); }}
+                      className={`${styles.statusBtn} ${selectedOrder.status === s ? styles.statusBtnActive : ''}`}
+                      style={selectedOrder.status === s ? { background: sl?.bg, color: sl?.color, borderColor: sl?.color } : {}}
+                      onClick={() => updateOrderStatus(selectedOrder.id, s)}
                     >
                       {sl?.label}
                     </button>

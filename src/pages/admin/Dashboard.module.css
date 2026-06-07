@@ -127,3 +127,69 @@
 .topName { font-size: 0.82rem; color: #D0CBC5; margin: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .topRevenue { font-size: 0.75rem; color: #C9A96E; font-weight: 600; margin: 0.15rem 0 0; }
 .topQty { font-size: 0.7rem; color: #8B8680; white-space: nowrap; }
+
+/* Loading & Error States */
+.loadingWrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 400px;
+  color: #8B8680;
+  gap: 1rem;
+}
+.spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid rgba(201,169,110,0.1);
+  border-radius: 50%;
+  border-top-color: #C9A96E;
+  animation: spin 1s ease-in-out infinite;
+}
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.errorWrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 400px;
+  color: #F0EDE8;
+  gap: 0.5rem;
+  text-align: center;
+}
+.errorIcon {
+  font-size: 3rem;
+  margin-bottom: 0.5rem;
+}
+.btnRetry {
+  margin-top: 1rem;
+  padding: 0.5rem 1.5rem;
+  background: #C9A96E;
+  color: #13161F;
+  border: none;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+.btnRetry:hover {
+  opacity: 0.9;
+}
+.btnRefresh {
+  padding: 0.4rem 0.9rem;
+  font-size: 0.75rem;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 8px;
+  color: #C9A96E;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.btnRefresh:hover {
+  background: rgba(201,169,110,0.1);
+  border-color: rgba(201,169,110,0.3);
+}
+

@@ -330,33 +330,64 @@ router.put(
     try {
       const order = await prisma.order.findUnique({
         where: { id: req.params.id },
+        include: {
+          items: true,
+        },
       });
 
       if (!order) {
         return res.status(404).json({ message: 'Order not found.' });
       }
 
-      const updatedOrder = await prisma.order.update({
-        where: { id: req.params.id },
-        data: { status: req.body.status },
-        include: {
-          shippingAddress: true,
-          items: {
-            include: {
-              product: {
-                select: {
-                  image: true,
-                  category: true,
+      const previousStatus = order.status;
+      const newStatus = req.body.status;
+
+      // ── Stock restoration on cancellation ──────────────────────────────────
+      const isCancelling = newStatus === 'cancelled' && previousStatus !== 'cancelled';
+
+      const updatedOrder = await prisma.$transaction(async (tx) => {
+        if (isCancelling) {
+          for (const item of order.items) {
+            // Restore stock
+            await tx.product.update({
+              where: { id: item.productId },
+              data: { stock: { increment: item.quantity } },
+            });
+            // Record movement
+            await tx.stockMovement.create({
+              data: {
+                productId: item.productId,
+                quantity: item.quantity, // positive = returned to stock
+                type: 'cancellation',
+                note: `Order ${order.id} cancelled`,
+              },
+            });
+          }
+        }
+
+        return tx.order.update({
+          where: { id: req.params.id },
+          data: { status: newStatus },
+          include: {
+            shippingAddress: true,
+            items: {
+              include: {
+                product: {
+                  select: {
+                    image: true,
+                    category: true,
+                  },
                 },
               },
             },
           },
-        },
+        });
       });
 
       return res.json({
         message: 'Order status updated successfully.',
         order: formatOrderResponse(updatedOrder),
+        stockRestored: isCancelling,
       });
     } catch (error) {
       console.error('Order status update error:', error);

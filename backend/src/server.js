@@ -5,14 +5,16 @@ import fs from 'fs';
 import helmet from 'helmet';
 import multer from 'multer';
 import path from 'path';
-import swaggerUi from 'swagger-ui-express';
 import { fileURLToPath } from 'url';
+import { apiReference } from '@scalar/express-api-reference';
 import { env } from './config/env.js';
 import adminRoutes from './routes/admin.js';
 import authRoutes from './routes/auth.js';
+import categoryRoutes from './routes/categories.js';
+import contactRoutes from './routes/contact.js';
 import orderRoutes from './routes/orders.js';
 import productRoutes from './routes/products.js';
-import contactRoutes from './routes/contact.js';
+import stockRoutes from './routes/stock.js';
 import { buildSwaggerSpec } from './swagger.js';
 
 const app = express();
@@ -43,18 +45,6 @@ const authLimiter = rateLimit({
   message: { message: 'Too many authentication attempts. Please try again later.' },
 });
 
-const swaggerUiOptions = {
-  customSiteTitle: 'Luxora API Docs',
-  swaggerOptions: {
-    url: '/api-docs.json',
-    docExpansion: 'list',
-    filter: true,
-    persistAuthorization: true,
-    showRequestHeaders: true,
-    showRequestDuration: true,
-  },
-};
-
 app.disable('x-powered-by');
 app.set('trust proxy', 1);
 
@@ -64,10 +54,12 @@ app.use(
     contentSecurityPolicy: {
       directives: {
         defaultSrc: ["'self'"],
-        imgSrc: ["'self'", 'data:'],
-        styleSrc: ["'self'", "'unsafe-inline'"],
-        scriptSrc: ["'self'", "'unsafe-inline'"],
-        connectSrc: ["'self'"],
+        imgSrc: ["'self'", 'data:', 'https:'],
+        styleSrc: ["'self'", "'unsafe-inline'", 'https:'],
+        scriptSrc: ["'self'", "'unsafe-inline'", 'https:'],
+        connectSrc: ["'self'", 'https:'],
+        fontSrc: ["'self'", 'https:'],
+        workerSrc: ["'self'", 'blob:'],
       },
     },
   }),
@@ -79,7 +71,6 @@ app.use(
       if (!origin || env.corsOrigins.includes(origin)) {
         return callback(null, true);
       }
-
       return callback(new Error('Origin not allowed by CORS.'));
     },
     credentials: true,
@@ -90,14 +81,28 @@ app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 app.use('/uploads', express.static(uploadsPath));
 
+// ── OpenAPI spec endpoint ─────────────────────────────────────────────────────
 app.get('/api-docs.json', (req, res) => {
   const baseUrl = `${req.protocol}://${req.get('host')}`;
   res.json(buildSwaggerSpec(baseUrl));
 });
 
-app.use('/api-docs', swaggerUi.serveFiles(null, swaggerUiOptions));
-app.get('/api-docs', swaggerUi.setup(null, swaggerUiOptions));
-app.get('/api-docs/', swaggerUi.setup(null, swaggerUiOptions));
+// ── Scalar API Reference UI ───────────────────────────────────────────────────
+app.use(
+  '/api-docs',
+  apiReference({
+    spec: { url: '/api-docs.json' },
+    theme: 'kepler',
+    layout: 'sidebar',
+    defaultHttpClient: { targetKey: 'javascript', clientKey: 'fetch' },
+    metaData: {
+      title: 'Luxora API — Documentation',
+    },
+    authentication: {
+      preferredSecurityScheme: 'bearerAuth',
+    },
+  }),
+);
 
 app.get('/', (req, res) => {
   res.json({
@@ -106,13 +111,17 @@ app.get('/', (req, res) => {
   });
 });
 
+// ── API routes ────────────────────────────────────────────────────────────────
 app.use('/api', apiLimiter);
 app.use('/api/auth', authLimiter, authRoutes);
 app.use('/api/products', productRoutes);
+app.use('/api/categories', categoryRoutes);
 app.use('/api/orders', orderRoutes);
+app.use('/api/admin/stock', stockRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/contact', contactRoutes);
 
+// ── Error handler ─────────────────────────────────────────────────────────────
 app.use((err, req, res, next) => {
   if (err instanceof multer.MulterError) {
     return res.status(400).json({ message: err.message });
@@ -137,19 +146,15 @@ const server = app.listen(PORT, () => {
   console.log('=========================================');
   console.log(' Luxora backend is running on:');
   console.log(`  http://localhost:${activePort}`);
-  console.log(`  Swagger documentation: http://localhost:${activePort}/api-docs`);
+  console.log(`  Scalar API docs: http://localhost:${activePort}/api-docs`);
   console.log('=========================================');
 });
 
 server.on('error', (error) => {
   if (error.code === 'EADDRINUSE') {
     console.error(`Port ${PORT} is already in use.`);
-    console.error('Choose one backend runtime mode only:');
-    console.error(' - Local mode: `npm run dev:db` then `npm run dev`');
-    console.error(' - Docker mode: `npm run docker:up` then `npm run dev:frontend:docker`');
     process.exit(1);
   }
-
   console.error('Server startup error:', error);
   process.exit(1);
 });

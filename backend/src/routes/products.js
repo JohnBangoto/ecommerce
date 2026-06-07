@@ -2,7 +2,7 @@ import express from 'express';
 import { z } from 'zod';
 import { prisma } from '../lib/prisma.js';
 import { authenticateToken, requireAdmin } from '../middlewares/auth.js';
-import { upload, uploadImageToSupabase, deleteImageFromSupabase } from '../middlewares/upload.js';
+import { upload, uploadImagesToSupabase, deleteImageFromSupabase, deleteImagesFromSupabase } from '../middlewares/upload.js';
 import { validate } from '../middlewares/validate.js';
 
 const router = express.Router();
@@ -18,6 +18,10 @@ const productListQuerySchema = z.object({
   maxPrice: z.coerce.number().nonnegative().optional(),
   isFeatured: z.enum(['true', 'false']).optional(),
   isNew: z.enum(['true', 'false']).optional(),
+  condition: z.enum(['new', 'used', 'refurbished']).optional(),
+  isActive: z.enum(['true', 'false']).optional(),
+  page: z.coerce.number().int().min(1).optional().default(1),
+  limit: z.coerce.number().int().min(1).max(100).optional().default(24),
 });
 
 const reviewSchema = z.object({
@@ -47,6 +51,8 @@ const createProductSchema = z.object({
   colors: z.string().trim().max(500).optional().default(''),
   condition: z.enum(['new', 'used', 'refurbished']).optional().default('new'),
   isActive: z.union([z.boolean(), z.enum(['true', 'false'])]).optional().default(true),
+  isFeatured: z.union([z.boolean(), z.enum(['true', 'false'])]).optional().default(false),
+  isNew: z.union([z.boolean(), z.enum(['true', 'false'])]).optional().default(true),
   lowStockThreshold: z.coerce.number().int().min(0).optional().default(5),
 });
 
@@ -64,6 +70,8 @@ const updateProductSchema = z
     condition: z.enum(['new', 'used', 'refurbished']).optional(),
     isActive: z.union([z.boolean(), z.enum(['true', 'false'])]).optional(),
     lowStockThreshold: z.coerce.number().int().min(0).optional(),
+    // Permet de préciser quelles images existantes garder (URLs CSV)
+    keepImages: z.string().optional(),
   })
   .refine((payload) => Object.keys(payload).length > 0, {
     message: 'At least one product field must be provided.',
@@ -77,6 +85,8 @@ const formatProductResponse = (product) => {
   return {
     ...product,
     category: product.category?.slug || product.category || '',
+    categoryId: product.categoryId,
+    categoryName: product.category?.name || '',
     sizes: product.sizes ? product.sizes.split(',').map((value) => value.trim()).filter(Boolean) : [],
     colors: product.colors ? product.colors.split(',').map((value) => value.trim()).filter(Boolean) : [],
     images: product.images
@@ -97,13 +107,20 @@ const includeProductRelations = {
  * @swagger
  * /api/products:
  *   get:
- *     summary: Retrieve products with filters
+ *     summary: Retrieve products with filters and pagination
  *     tags: [Produits]
  */
 router.get('/', validate({ query: productListQuerySchema }), async (req, res) => {
   try {
-    const { category, search, minPrice, maxPrice, isFeatured, isNew } = req.query;
+    const { category, search, minPrice, maxPrice, isFeatured, isNew, condition, isActive, page, limit } = req.query;
     const where = {};
+
+    // Par défaut, le catalogue public ne montre que les produits actifs
+    if (isActive !== undefined) {
+      where.isActive = isActive === 'true';
+    } else {
+      where.isActive = true;
+    }
 
     if (category && category !== 'all') {
       where.category = { slug: category };
@@ -115,6 +132,10 @@ router.get('/', validate({ query: productListQuerySchema }), async (req, res) =>
 
     if (isNew === 'true') {
       where.isNew = true;
+    }
+
+    if (condition) {
+      where.condition = condition;
     }
 
     if (search) {
@@ -136,13 +157,26 @@ router.get('/', validate({ query: productListQuerySchema }), async (req, res) =>
       }
     }
 
-    const products = await prisma.product.findMany({
-      where,
-      orderBy: { createdAt: 'desc' },
-      include: includeProductRelations,
-    });
+    const skip = (page - 1) * limit;
 
-    return res.json(products.map(formatProductResponse));
+    const [products, total] = await Promise.all([
+      prisma.product.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        include: includeProductRelations,
+        skip,
+        take: limit,
+      }),
+      prisma.product.count({ where }),
+    ]);
+
+    return res.json({
+      products: products.map(formatProductResponse),
+      total,
+      page,
+      totalPages: Math.ceil(total / limit),
+      limit,
+    });
   } catch (error) {
     console.error('Product list error:', error);
     return res.status(500).json({ message: 'Unable to load the products right now.' });
@@ -257,14 +291,18 @@ router.post(
   '/',
   authenticateToken,
   requireAdmin,
-  upload.single('image'),
+  upload.array('images', 10),
   validate({ body: createProductSchema }),
   async (req, res) => {
     try {
-      let imagePath = '/placeholder.jpg';
-      if (req.file) {
-        imagePath = await uploadImageToSupabase(req.file);
+      let imageUrls = [];
+
+      if (req.files && req.files.length > 0) {
+        imageUrls = await uploadImagesToSupabase(req.files);
       }
+
+      const imagePath = imageUrls.length > 0 ? imageUrls[0] : '/placeholder.jpg';
+      const imagesCSV = imageUrls.length > 0 ? imageUrls.join(',') : imagePath;
 
       const product = await prisma.product.create({
         data: {
@@ -274,11 +312,11 @@ router.post(
           stock: Number(req.body.stock || 0),
           categoryId: Number(req.body.categoryId),
           image: imagePath,
-          images: imagePath,
+          images: imagesCSV,
           sizes: req.body.sizes,
           colors: req.body.colors,
-          isNew: true,
-          isFeatured: false,
+          isNew: stringToBoolean(req.body.isNew) !== false,
+          isFeatured: stringToBoolean(req.body.isFeatured) === true,
           condition: req.body.condition || 'new',
           isActive: stringToBoolean(req.body.isActive) !== false,
           lowStockThreshold: Number(req.body.lowStockThreshold || 5),
@@ -321,7 +359,7 @@ router.put(
   '/:id',
   authenticateToken,
   requireAdmin,
-  upload.single('image'),
+  upload.array('images', 10),
   validate({ params: productIdSchema, body: updateProductSchema }),
   async (req, res) => {
     try {
@@ -353,12 +391,37 @@ router.put(
         data.stock = newStock;
       }
 
-      if (req.file) {
-        if (existingProduct.image && existingProduct.image !== '/placeholder.jpg') {
-          await deleteImageFromSupabase(existingProduct.image);
+      // Gestion des images : conserver les existantes + ajouter les nouvelles
+      const existingImages = existingProduct.images
+        ? existingProduct.images.split(',').map((u) => u.trim()).filter(Boolean)
+        : [existingProduct.image].filter(Boolean);
+
+      // keepImages = liste CSV des URLs existantes à conserver
+      let keptImages = existingImages;
+      if (req.body.keepImages !== undefined) {
+        const keepList = req.body.keepImages.split(',').map((u) => u.trim()).filter(Boolean);
+        // Supprimer de Supabase les images supprimées
+        const removedImages = existingImages.filter((url) => !keepList.includes(url));
+        if (removedImages.length > 0) {
+          await deleteImagesFromSupabase(removedImages);
         }
-        data.image = await uploadImageToSupabase(req.file);
-        data.images = data.image;
+        keptImages = keepList;
+      }
+
+      // Uploader les nouvelles images
+      let newImageUrls = [];
+      if (req.files && req.files.length > 0) {
+        newImageUrls = await uploadImagesToSupabase(req.files);
+      }
+
+      const allImages = [...keptImages, ...newImageUrls];
+
+      if (allImages.length > 0) {
+        data.images = allImages.join(',');
+        data.image = allImages[0];
+      } else if (existingImages.length === 0) {
+        data.image = '/placeholder.jpg';
+        data.images = '/placeholder.jpg';
       }
 
       const updatedProduct = await prisma.product.update({
@@ -408,9 +471,12 @@ router.delete('/:id', authenticateToken, requireAdmin, validate({ params: produc
       return res.status(404).json({ message: 'Product not found.' });
     }
 
-    if (product.image && product.image !== '/placeholder.jpg') {
-      await deleteImageFromSupabase(product.image);
-    }
+    // Supprimer toutes les images du produit sur Supabase
+    const imageUrls = product.images
+      ? product.images.split(',').map((u) => u.trim()).filter(Boolean)
+      : [product.image].filter(Boolean);
+
+    await deleteImagesFromSupabase(imageUrls);
 
     await prisma.product.delete({
       where: { id: req.params.id },

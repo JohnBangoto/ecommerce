@@ -2,7 +2,6 @@ import { ArrowRight, CheckCircle, Clock, Home, Package, Search, Truck } from 'lu
 import { useEffect, useState } from 'react';
 import { Link, useLocation, useParams } from 'react-router-dom';
 import { orderStatusLabels } from '../data/orders';
-import { useAdminStore } from '../store/adminStore';
 import { useOrderStore } from '../store/orderStore';
 import formatPrice from '../utils/formatPrice';
 import styles from './Suivi.module.css';
@@ -19,7 +18,6 @@ export default function Suivi() {
   const location = useLocation();
   const tokenFromUrl = new URLSearchParams(location.search).get('token') || '';
 
-  const adminOrders = useAdminStore((state) => state.orders);
   const getOrderById = useOrderStore((state) => state.getOrderById);
   const getTrackingToken = useOrderStore((state) => state.getTrackingToken);
 
@@ -38,13 +36,6 @@ export default function Suivi() {
     async function loadOrder() {
       setLoading(true);
 
-      const fromAdmin = adminOrders.find((entry) => entry.id === searchId);
-      if (fromAdmin) {
-        setOrder(fromAdmin);
-        setLoading(false);
-        return;
-      }
-
       const resolvedToken = trackingToken || getTrackingToken(searchId);
       const fromStore = await getOrderById(searchId, { trackingToken: resolvedToken });
       if (fromStore) {
@@ -58,7 +49,7 @@ export default function Suivi() {
     }
 
     loadOrder();
-  }, [adminOrders, getOrderById, getTrackingToken, searched, searchId, trackingToken]);
+  }, [getOrderById, getTrackingToken, searched, searchId, trackingToken]);
 
   const statusInfo = order ? orderStatusLabels[order.status] : null;
 

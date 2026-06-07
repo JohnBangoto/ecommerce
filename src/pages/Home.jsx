@@ -1,20 +1,52 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { ArrowRight, Truck, RotateCcw, Shield, Headphones, Star } from 'lucide-react';
-import { categories } from '../data/products';
-import { useAdminStore } from '../store/adminStore';
+import { useProductStore } from '../store/productStore';
 import ProductCard from '../components/product/ProductCard';
 import styles from './Home.module.css';
 
+// Skeleton card
+function SkeletonCard() {
+  return (
+    <div style={{
+      background: 'var(--color-surface, #f3f4f6)',
+      borderRadius: 12,
+      height: 320,
+      animation: 'pulse 1.5s ease-in-out infinite',
+    }} />
+  );
+}
+
 export default function Home() {
   const navigate = useNavigate();
-  const products = useAdminStore(s => s.products);
-  const featuredProducts = products.filter(p => p.isFeatured);
-  const newProducts = products.filter(p => p.isNew);
+
+  const {
+    fetchProducts,
+    fetchCategories,
+    categories,
+    productsLoading,
+  } = useProductStore();
+
+  const [featuredProducts, setFeaturedProducts] = React.useState([]);
+  const [newProducts, setNewProducts] = React.useState([]);
+
+  useEffect(() => {
+    fetchCategories();
+
+    // Produits vedettes
+    fetchProducts({ isFeatured: 'true', limit: 4, page: 1 }).then(data => {
+      setFeaturedProducts(data.products || []);
+    });
+
+    // Nouveautés
+    fetchProducts({ isNew: 'true', limit: 4, page: 1 }).then(data => {
+      setNewProducts(data.products || []);
+    });
+  }, []);
 
   const trustItems = [
-    { icon: <Truck size={24} />, title: 'Livraison Gratuite', desc: 'Dès 50 000 FCFA d\'achat' },
-    { icon: <RotateCcw size={24} />, title: 'Retours Faciles', desc: '30 jours pour changer d\'avis' },
+    { icon: <Truck size={24} />, title: 'Livraison Gratuite', desc: "Dès 50 000 FCFA d'achat" },
+    { icon: <RotateCcw size={24} />, title: 'Retours Faciles', desc: "30 jours pour changer d'avis" },
     { icon: <Shield size={24} />, title: 'Paiement Sécurisé', desc: 'Wave · Orange Money · CB' },
     { icon: <Headphones size={24} />, title: 'Service Client', desc: 'Lun–Ven 8h–18h (Dakar)' },
   ];
@@ -46,18 +78,18 @@ export default function Home() {
             <Link to="/catalogue" className={styles.ctaPrimary}>
               Découvrir la collection <ArrowRight size={18} />
             </Link>
-            <Link to="/catalogue?cat=nouveautes" className={styles.ctaSecondary}>
+            <Link to="/catalogue?isNew=true" className={styles.ctaSecondary}>
               Nouveautés
             </Link>
           </div>
         </div>
         {/* Stats */}
         <div className={styles.heroStats}>
-          <div className={styles.stat}><span className={styles.statNum}>50+</span><span className={styles.statLabel}>Produits</span></div>
-          <div className={styles.statDivider} />
-          <div className={styles.stat}><span className={styles.statNum}>7</span><span className={styles.statLabel}>Catégories</span></div>
+          <div className={styles.stat}><span className={styles.statNum}>{categories.length > 0 ? `${categories.length}` : '…'}</span><span className={styles.statLabel}>Catégories</span></div>
           <div className={styles.statDivider} />
           <div className={styles.stat}><span className={styles.statNum}>4.8★</span><span className={styles.statLabel}>Note moyenne</span></div>
+          <div className={styles.statDivider} />
+          <div className={styles.stat}><span className={styles.statNum}>100%</span><span className={styles.statLabel}>Sécurisé</span></div>
         </div>
       </section>
 
@@ -88,18 +120,23 @@ export default function Home() {
             </Link>
           </div>
           <div className={styles.categoriesGrid}>
-            {categories.map(cat => (
-              <Link
-                key={cat.id}
-                to={`/catalogue?cat=${cat.id}`}
-                className={styles.catCard}
-                style={{ '--cat-color': cat.color }}
-              >
-                <span className={styles.catIcon}>{cat.icon}</span>
-                <span className={styles.catName}>{cat.name}</span>
-                <span className={styles.catCount}>{cat.count} produits</span>
-              </Link>
-            ))}
+            {categories.length === 0
+              ? [...Array(6)].map((_, i) => (
+                  <div key={i} style={{ background: 'var(--color-surface,#f3f4f6)', borderRadius: 12, height: 100, animation: 'pulse 1.5s ease-in-out infinite' }} />
+                ))
+              : categories.map(cat => (
+                  <Link
+                    key={cat.id}
+                    to={`/catalogue?cat=${cat.slug}`}
+                    className={styles.catCard}
+                    style={{ '--cat-color': '#A5B4D4' }}
+                  >
+                    <span className={styles.catIcon}>🏷️</span>
+                    <span className={styles.catName}>{cat.name}</span>
+                    <span className={styles.catCount}>{cat.productCount} produit{cat.productCount !== 1 ? 's' : ''}</span>
+                  </Link>
+                ))
+            }
           </div>
         </div>
       </section>
@@ -112,14 +149,17 @@ export default function Home() {
               <span className={styles.sectionTag}>Sélection</span>
               <h2 className={styles.sectionTitle}>Coups de Cœur</h2>
             </div>
-            <Link to="/catalogue" className={styles.seeAll}>
+            <Link to="/catalogue?isFeatured=true" className={styles.seeAll}>
               Voir tout <ArrowRight size={16} />
             </Link>
           </div>
           <div className={styles.productsGrid}>
-            {featuredProducts.slice(0, 4).map(product => (
-              <ProductCard key={product.id} product={product} />
-            ))}
+            {productsLoading && featuredProducts.length === 0
+              ? [...Array(4)].map((_, i) => <SkeletonCard key={i} />)
+              : featuredProducts.length > 0
+                ? featuredProducts.map(product => <ProductCard key={product.id} product={product} />)
+                : <p style={{ color: 'var(--color-muted,#888)', gridColumn: '1/-1', textAlign: 'center' }}>Aucun produit vedette pour le moment.</p>
+            }
           </div>
         </div>
       </section>
@@ -130,9 +170,9 @@ export default function Home() {
           <div className={styles.bannerInner}>
             <div className={styles.bannerContent}>
               <span className={styles.bannerTag}>Offre exclusive</span>
-              <h2 className={styles.bannerTitle}>Livraison Gratuite<br />dès 50 000 FCFA d'achat</h2>
+              <h2 className={styles.bannerTitle}>Livraison Gratuite<br />dès 50 000 FCFA d'achat</h2>
               <p className={styles.bannerDesc}>
-                Profitez de la livraison offerte sur toutes vos commandes de plus de 50 000 FCFA au Sénégal.
+                Profitez de la livraison offerte sur toutes vos commandes de plus de 50 000 FCFA au Sénégal.
               </p>
               <Link to="/catalogue" className={styles.bannerCta}>
                 En profiter <ArrowRight size={16} />
@@ -156,14 +196,17 @@ export default function Home() {
               <span className={styles.sectionTag}>Dernières arrivées</span>
               <h2 className={styles.sectionTitle}>Nouveautés</h2>
             </div>
-            <Link to="/catalogue?cat=nouveautes" className={styles.seeAll}>
+            <Link to="/catalogue?isNew=true" className={styles.seeAll}>
               Voir tout <ArrowRight size={16} />
             </Link>
           </div>
           <div className={styles.productsGrid}>
-            {(newProducts.length > 0 ? newProducts : products).slice(0, 4).map(product => (
-              <ProductCard key={product.id} product={product} />
-            ))}
+            {productsLoading && newProducts.length === 0
+              ? [...Array(4)].map((_, i) => <SkeletonCard key={i} />)
+              : newProducts.length > 0
+                ? newProducts.map(product => <ProductCard key={product.id} product={product} />)
+                : <p style={{ color: 'var(--color-muted,#888)', gridColumn: '1/-1', textAlign: 'center' }}>Aucune nouveauté pour le moment.</p>
+            }
           </div>
         </div>
       </section>

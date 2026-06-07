@@ -1,59 +1,107 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { SlidersHorizontal, Grid, List, X, ChevronDown } from 'lucide-react';
-import { categories } from '../data/products';
-import { useAdminStore } from '../store/adminStore';
+import { useProductStore } from '../store/productStore';
 import ProductCard from '../components/product/ProductCard';
 import styles from './Catalogue.module.css';
 
 const priceRanges = [
-  { label: 'Moins de 50 000 FCFA',          min: 0,      max: 50000 },
-  { label: '50 000 – 100 000 FCFA',         min: 50000,  max: 100000 },
-  { label: '100 000 – 250 000 FCFA',        min: 100000, max: 250000 },
-  { label: '250 000 – 500 000 FCFA',        min: 250000, max: 500000 },
-  { label: 'Plus de 500 000 FCFA',          min: 500000, max: Infinity },
+  { label: 'Moins de 50 000 FCFA',   min: 0,      max: 50000 },
+  { label: '50 000 – 100 000 FCFA',  min: 50000,  max: 100000 },
+  { label: '100 000 – 250 000 FCFA', min: 100000, max: 250000 },
+  { label: '250 000 – 500 000 FCFA', min: 250000, max: 500000 },
+  { label: 'Plus de 500 000 FCFA',   min: 500000, max: undefined },
 ];
 
 const sortOptions = [
-  { value: 'default', label: 'Pertinence' },
-  { value: 'price-asc', label: 'Prix croissant' },
+  { value: 'default',    label: 'Pertinence' },
+  { value: 'price-asc',  label: 'Prix croissant' },
   { value: 'price-desc', label: 'Prix décroissant' },
-  { value: 'rating', label: 'Mieux notés' },
-  { value: 'new', label: 'Nouveautés' },
+  { value: 'new',        label: 'Nouveautés' },
 ];
 
+function SkeletonCard() {
+  return (
+    <div style={{
+      background: 'var(--color-surface,#f3f4f6)',
+      borderRadius: 12,
+      height: 320,
+      animation: 'pulse 1.5s ease-in-out infinite',
+    }} />
+  );
+}
+
 export default function Catalogue() {
-  const products = useAdminStore(s => s.products);
+  const { fetchProducts, fetchCategories, categories, products, total, totalPages, productsLoading } = useProductStore();
   const [searchParams, setSearchParams] = useSearchParams();
+
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sort, setSort] = useState('default');
   const [selectedCat, setSelectedCat] = useState(searchParams.get('cat') || '');
   const [selectedPriceRange, setSelectedPriceRange] = useState(null);
   const [showInStock, setShowInStock] = useState(false);
   const [viewMode, setViewMode] = useState('grid');
+  const [page, setPage] = useState(1);
 
-  const filteredProducts = useMemo(() => {
-    let list = [...products];
-    if (selectedCat) list = list.filter(p => p.category === selectedCat);
-    if (selectedPriceRange) {
-      list = list.filter(p => p.price >= selectedPriceRange.min && p.price <= selectedPriceRange.max);
+  // Lire les params URL initiaux
+  useEffect(() => {
+    const cat = searchParams.get('cat') || '';
+    const isNew = searchParams.get('isNew') || '';
+    const isFeatured = searchParams.get('isFeatured') || '';
+    setSelectedCat(cat);
+    fetchCategories();
+    loadProducts({ cat, isNew, isFeatured, page: 1 });
+    setPage(1);
+  }, []);
+
+  const loadProducts = useCallback((overrides = {}) => {
+    const params = {
+      page: overrides.page ?? page,
+      limit: 24,
+    };
+    const cat = overrides.cat !== undefined ? overrides.cat : selectedCat;
+    if (cat) params.category = cat;
+
+    // Filtres prix
+    const priceRange = overrides.priceRange !== undefined ? overrides.priceRange : selectedPriceRange;
+    if (priceRange) {
+      params.minPrice = priceRange.min;
+      if (priceRange.max !== undefined) params.maxPrice = priceRange.max;
     }
-    if (showInStock) list = list.filter(p => p.stock > 0);
-    switch (sort) {
-      case 'price-asc': list.sort((a, b) => a.price - b.price); break;
-      case 'price-desc': list.sort((a, b) => b.price - a.price); break;
-      case 'rating': list.sort((a, b) => b.rating - a.rating); break;
-      case 'new': list = list.filter(p => p.isNew).concat(list.filter(p => !p.isNew)); break;
-      default: break;
+
+    // Filtre stock
+    if (overrides.inStock !== undefined ? overrides.inStock : showInStock) {
+      // Le backend filtre isActive=true par défaut, pas de paramètre stock direct.
+      // On passe un flag custom géré localement plus bas si besoin
     }
-    return list;
+
+    // Filtre nouveautés depuis URL
+    if (overrides.isNew) params.isNew = 'true';
+    if (overrides.isFeatured) params.isFeatured = 'true';
+
+    // Tri
+    const currentSort = overrides.sort !== undefined ? overrides.sort : sort;
+    if (currentSort === 'new') params.isNew = 'true';
+
+    fetchProducts(params);
+  }, [page, selectedCat, selectedPriceRange, showInStock, sort]);
+
+  // Recharger quand les filtres changent
+  useEffect(() => {
+    loadProducts({ page: 1 });
+    setPage(1);
   }, [selectedCat, selectedPriceRange, showInStock, sort]);
+
+  useEffect(() => {
+    loadProducts({ page });
+  }, [page]);
 
   const clearFilters = () => {
     setSelectedCat('');
     setSelectedPriceRange(null);
     setShowInStock(false);
     setSort('default');
+    setSearchParams({});
   };
 
   const hasFilters = selectedCat || selectedPriceRange || showInStock;
@@ -66,7 +114,7 @@ export default function Catalogue() {
           <div>
             <h1 className={styles.pageTitle}>Catalogue</h1>
             <p className={styles.pageDesc}>
-              {filteredProducts.length} produit{filteredProducts.length !== 1 ? 's' : ''} trouvé{filteredProducts.length !== 1 ? 's' : ''}
+              {productsLoading ? 'Chargement…' : `${total} produit${total !== 1 ? 's' : ''} trouvé${total !== 1 ? 's' : ''}`}
             </p>
           </div>
           {/* Active filters */}
@@ -74,7 +122,7 @@ export default function Catalogue() {
             <div className={styles.activeFilters}>
               {selectedCat && (
                 <button className={styles.filterTag} onClick={() => setSelectedCat('')}>
-                  {categories.find(c => c.id === selectedCat)?.name} <X size={12} />
+                  {categories.find(c => c.slug === selectedCat)?.name || selectedCat} <X size={12} />
                 </button>
               )}
               {selectedPriceRange && (
@@ -112,16 +160,16 @@ export default function Catalogue() {
                 onClick={() => setSelectedCat('')}
               >
                 Toutes les catégories
-                <span>{products.length}</span>
+                <span>{total}</span>
               </button>
               {categories.map(cat => (
                 <button
                   key={cat.id}
-                  className={`${styles.filterOption} ${selectedCat === cat.id ? styles.active : ''}`}
-                  onClick={() => setSelectedCat(selectedCat === cat.id ? '' : cat.id)}
+                  className={`${styles.filterOption} ${selectedCat === cat.slug ? styles.active : ''}`}
+                  onClick={() => setSelectedCat(selectedCat === cat.slug ? '' : cat.slug)}
                 >
-                  <span>{cat.icon} {cat.name}</span>
-                  <span>{cat.count}</span>
+                  <span>{cat.name}</span>
+                  <span>{cat.productCount}</span>
                 </button>
               ))}
             </div>
@@ -204,7 +252,11 @@ export default function Catalogue() {
             </div>
 
             {/* Products */}
-            {filteredProducts.length === 0 ? (
+            {productsLoading ? (
+              <div className={`${styles.productsGrid}`}>
+                {[...Array(8)].map((_, i) => <SkeletonCard key={i} />)}
+              </div>
+            ) : products.length === 0 ? (
               <div className={styles.empty}>
                 <p className={styles.emptyTitle}>Aucun produit trouvé</p>
                 <p className={styles.emptyDesc}>Essayez de modifier vos filtres.</p>
@@ -214,9 +266,49 @@ export default function Catalogue() {
               </div>
             ) : (
               <div className={`${styles.productsGrid} ${viewMode === 'list' ? styles.listView : ''}`}>
-                {filteredProducts.map(product => (
+                {products.map(product => (
                   <ProductCard key={product.id} product={product} />
                 ))}
+              </div>
+            )}
+
+            {/* Pagination */}
+            {totalPages > 1 && (
+              <div style={{ display: 'flex', justifyContent: 'center', gap: 8, marginTop: 32, flexWrap: 'wrap' }}>
+                <button
+                  onClick={() => setPage(p => Math.max(1, p - 1))}
+                  disabled={page === 1 || productsLoading}
+                  style={{ padding: '8px 16px', borderRadius: 8, border: '1px solid #ddd', cursor: page === 1 ? 'not-allowed' : 'pointer', opacity: page === 1 ? 0.5 : 1 }}
+                >
+                  ← Précédent
+                </button>
+                {[...Array(totalPages)].map((_, i) => {
+                  const p = i + 1;
+                  if (totalPages > 7 && Math.abs(p - page) > 2 && p !== 1 && p !== totalPages) return null;
+                  return (
+                    <button
+                      key={p}
+                      onClick={() => setPage(p)}
+                      disabled={productsLoading}
+                      style={{
+                        padding: '8px 14px', borderRadius: 8, cursor: 'pointer',
+                        background: p === page ? 'var(--color-primary,#8B4513)' : 'transparent',
+                        color: p === page ? '#fff' : 'inherit',
+                        border: `1px solid ${p === page ? 'var(--color-primary,#8B4513)' : '#ddd'}`,
+                        fontWeight: p === page ? 700 : 400,
+                      }}
+                    >
+                      {p}
+                    </button>
+                  );
+                })}
+                <button
+                  onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                  disabled={page === totalPages || productsLoading}
+                  style={{ padding: '8px 16px', borderRadius: 8, border: '1px solid #ddd', cursor: page === totalPages ? 'not-allowed' : 'pointer', opacity: page === totalPages ? 0.5 : 1 }}
+                >
+                  Suivant →
+                </button>
               </div>
             )}
           </div>

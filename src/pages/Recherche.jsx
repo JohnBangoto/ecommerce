@@ -1,35 +1,42 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
-import { Search, X, Clock, TrendingUp, ArrowRight } from 'lucide-react';
-import { categories } from '../data/products';
-import { useAdminStore } from '../store/adminStore';
+import { Search, X, TrendingUp, ArrowRight } from 'lucide-react';
+import { useProductStore } from '../store/productStore';
 import ProductCard from '../components/product/ProductCard';
 import styles from './Recherche.module.css';
 
-const recentSearches = ['veste cuir', 'casque audio', 'bougie', 'tapis yoga'];
-const popularSearches = ['cachemire', 'montre', 'parfum', 'sneakers'];
+const popularSearches = ['veste', 'robe', 'montre', 'sac', 'sneakers', 'parfum'];
+
+function useDebounce(value, delay) {
+  const [debounced, setDebounced] = useState(value);
+  useEffect(() => {
+    const t = setTimeout(() => setDebounced(value), delay);
+    return () => clearTimeout(t);
+  }, [value, delay]);
+  return debounced;
+}
 
 export default function Recherche() {
-  const products = useAdminStore(s => s.products);
-  const searchProducts = (q) => {
-    const query = q.toLowerCase();
-    return products.filter(p =>
-      p.name.toLowerCase().includes(query) ||
-      p.description.toLowerCase().includes(query) ||
-      (p.tags || []).some(t => t.toLowerCase().includes(query))
-    );
-  };
+  const { fetchProducts, fetchCategories, categories, products, total, productsLoading } = useProductStore();
   const [searchParams, setSearchParams] = useSearchParams();
   const [query, setQuery] = useState(searchParams.get('q') || '');
-  const [results, setResults] = useState([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
+  const debouncedQuery = useDebounce(query, 400);
   const inputRef = useRef(null);
 
+  const hasQuery = searchParams.get('q');
+
+  useEffect(() => {
+    fetchCategories();
+  }, []);
+
+  // Lancer la recherche quand le paramètre URL change
   useEffect(() => {
     const q = searchParams.get('q') || '';
     setQuery(q);
-    if (q) setResults(searchProducts(q));
-    else setResults([]);
+    if (q.trim()) {
+      fetchProducts({ search: q.trim(), limit: 48 });
+    }
   }, [searchParams]);
 
   const handleSubmit = (e) => {
@@ -48,12 +55,9 @@ export default function Recherche() {
 
   const clearSearch = () => {
     setQuery('');
-    setResults([]);
     setSearchParams({});
     inputRef.current?.focus();
   };
-
-  const hasQuery = searchParams.get('q');
 
   return (
     <main className={styles.page}>
@@ -84,17 +88,9 @@ export default function Recherche() {
               </button>
             </div>
 
-            {/* Suggestions dropdown */}
+            {/* Suggestions */}
             {showSuggestions && !hasQuery && (
               <div className={styles.suggestions}>
-                <div className={styles.suggestGroup}>
-                  <p className={styles.suggestTitle}><Clock size={12} /> Recherches récentes</p>
-                  {recentSearches.map(s => (
-                    <button key={s} className={styles.suggestItem} onClick={() => handleSuggestion(s)}>
-                      {s} <ArrowRight size={12} />
-                    </button>
-                  ))}
-                </div>
                 <div className={styles.suggestGroup}>
                   <p className={styles.suggestTitle}><TrendingUp size={12} /> Tendances</p>
                   {popularSearches.map(s => (
@@ -115,10 +111,10 @@ export default function Recherche() {
                 {categories.map(cat => (
                   <Link
                     key={cat.id}
-                    to={`/catalogue?cat=${cat.id}`}
+                    to={`/catalogue?cat=${cat.slug}`}
                     className={styles.catChip}
                   >
-                    {cat.icon} {cat.name}
+                    {cat.name}
                   </Link>
                 ))}
               </div>
@@ -131,11 +127,20 @@ export default function Recherche() {
           <div className={styles.results}>
             <div className={styles.resultsHeader}>
               <p className={styles.resultsCount}>
-                <strong>{results.length}</strong> résultat{results.length !== 1 ? 's' : ''} pour &quot;{hasQuery}&quot;
+                {productsLoading
+                  ? 'Recherche en cours…'
+                  : <><strong>{total}</strong> résultat{total !== 1 ? 's' : ''} pour &quot;{hasQuery}&quot;</>
+                }
               </p>
             </div>
 
-            {results.length === 0 ? (
+            {productsLoading ? (
+              <div className={styles.grid}>
+                {[...Array(6)].map((_, i) => (
+                  <div key={i} style={{ background: '#f3f4f6', borderRadius: 12, height: 300, animation: 'pulse 1.5s ease-in-out infinite' }} />
+                ))}
+              </div>
+            ) : products.length === 0 ? (
               <div className={styles.noResults}>
                 <div className={styles.noResultsIcon}>🔍</div>
                 <h2 className={styles.noResultsTitle}>Aucun résultat trouvé</h2>
@@ -156,7 +161,7 @@ export default function Recherche() {
               </div>
             ) : (
               <div className={styles.grid}>
-                {results.map(product => (
+                {products.map(product => (
                   <ProductCard key={product.id} product={product} />
                 ))}
               </div>

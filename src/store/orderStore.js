@@ -1,7 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { api } from '../utils/api';
-import { useAdminStore } from './adminStore';
 
 export const useOrderStore = create(
   persist(
@@ -28,8 +27,6 @@ export const useOrderStore = create(
               : state.trackingTokens,
             loading: false,
           }));
-
-          useAdminStore.getState().addOrder(newOrder);
 
           return newOrder;
         } catch (error) {

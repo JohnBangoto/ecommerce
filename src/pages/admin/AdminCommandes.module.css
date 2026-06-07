@@ -118,3 +118,55 @@
 }
 .statusBtn:hover { background:rgba(255,255,255,0.08); color:#F0EDE8; }
 .statusBtnActive { font-weight:600; }
+
+/* Loading & Error States */
+.loadingWrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 400px;
+  color: #8B8680;
+  gap: 1rem;
+}
+.spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid rgba(201,169,110,0.1);
+  border-radius: 50%;
+  border-top-color: #C9A96E;
+  animation: spin 1s ease-in-out infinite;
+}
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.errorWrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 400px;
+  color: #F0EDE8;
+  gap: 0.5rem;
+  text-align: center;
+}
+.errorIcon {
+  font-size: 3rem;
+  margin-bottom: 0.5rem;
+}
+.btnRetry {
+  margin-top: 1rem;
+  padding: 0.5rem 1.5rem;
+  background: #C9A96E;
+  color: #13161F;
+  border: none;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+.btnRetry:hover {
+  opacity: 0.9;
+}
+

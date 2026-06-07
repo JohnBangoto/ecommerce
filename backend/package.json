@@ -8,13 +8,15 @@
     "start": "node src/server.js",
     "dev": "nodemon src/server.js",
     "prisma:migrate": "prisma migrate dev",
-    "prisma:studio": "prisma studio"
+    "prisma:studio": "prisma studio",
+    "test": "node test_integration.js"
   },
   "prisma": {
     "seed": "node prisma/seed.js"
   },
   "dependencies": {
     "@prisma/client": "^6.3.0",
+    "@scalar/express-api-reference": "^0.9.20",
     "@supabase/supabase-js": "^2.107.0",
     "bcryptjs": "^3.0.0",
     "cors": "^2.8.5",

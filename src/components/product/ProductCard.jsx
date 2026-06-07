@@ -84,7 +84,7 @@ export default function ProductCard({ product }) {
             ))}
           </div>
           <span className={styles.ratingText}>
-            {product.rating} ({product.reviews})
+            {product.rating} ({product.reviewsCount ?? product.reviews?.length ?? 0})
           </span>
         </div>
 

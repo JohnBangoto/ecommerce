@@ -26,3 +26,9 @@ backend/.env.local
 *.njsproj
 *.sln
 *.sw?
+
+# Local scripts & tests (do not push to Github)
+backend/test*
+backend/list-*
+backend/make-bucket-public.js
+backend/reset_admin.js

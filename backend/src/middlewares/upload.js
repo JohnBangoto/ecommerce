@@ -15,19 +15,20 @@ const fileFilter = (req, file, cb) => {
   cb(null, true);
 };
 
-// Utilise la mémoire vive — le buffer sera envoyé directement à Supabase Storage
+// Upload mémoire vive — le buffer sera envoyé directement à Supabase Storage
+// Supporte un fichier unique (legacy) ou plusieurs fichiers (multi-images produit)
 export const upload = multer({
   storage: multer.memoryStorage(),
   limits: {
-    fileSize: 5 * 1024 * 1024, // 5 MB max
-    files: 1,
+    fileSize: 5 * 1024 * 1024, // 5 MB max par fichier
+    files: 10,                  // 10 images max par produit
   },
   fileFilter,
 });
 
 /**
  * Upload un fichier image vers Supabase Storage.
- * @param {Express.Multer.File} file - Le fichier reçu par multer (req.file)
+ * @param {Express.Multer.File} file - Le fichier reçu par multer (req.file ou req.files[i])
  * @returns {Promise<string>} URL publique de l'image dans Supabase Storage
  */
 export async function uploadImageToSupabase(file) {
@@ -58,6 +59,16 @@ export async function uploadImageToSupabase(file) {
 }
 
 /**
+ * Upload plusieurs fichiers images vers Supabase Storage.
+ * @param {Express.Multer.File[]} files - Tableau de fichiers multer
+ * @returns {Promise<string[]>} URLs publiques des images uploadées
+ */
+export async function uploadImagesToSupabase(files) {
+  if (!files || files.length === 0) return [];
+  return Promise.all(files.map(uploadImageToSupabase));
+}
+
+/**
  * Supprime une image de Supabase Storage à partir de son URL publique.
  * Ne lance pas d'erreur si l'image n'existe pas ou si l'URL n'est pas valide.
  * @param {string} imageUrl - URL publique Supabase Storage de l'image à supprimer
@@ -79,4 +90,13 @@ export async function deleteImageFromSupabase(imageUrl) {
   } catch {
     // Silencieux : on ne bloque pas l'opération principale si la suppression échoue
   }
+}
+
+/**
+ * Supprime plusieurs images de Supabase Storage.
+ * @param {string[]} imageUrls - Tableau d'URLs publiques à supprimer
+ */
+export async function deleteImagesFromSupabase(imageUrls) {
+  if (!imageUrls || imageUrls.length === 0) return;
+  await Promise.all(imageUrls.map(deleteImageFromSupabase));
 }

@@ -1,7 +1,5 @@
 import { ArrowRight, Minus, Plus, ShoppingBag, Tag, Trash2, Truck } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
-import ProductCard from '../components/product/ProductCard';
-import { featuredProducts } from '../data/products';
 import { useAuthStore } from '../store/authStore';
 import { useCartStore } from '../store/cartStore';
 import formatPrice from '../utils/formatPrice';
@@ -28,12 +26,6 @@ export default function Panier() {
               Découvrir nos produits <ArrowRight size={18} />
             </Link>
           </div>
-          <section className={styles.suggestions}>
-            <h2 className={styles.suggTitle}>Vous pourriez aimer</h2>
-            <div className={styles.suggGrid}>
-              {featuredProducts.slice(0, 4).map(p => <ProductCard key={p.id} product={p} />)}
-            </div>
-          </section>
         </div>
       </main>
     );
